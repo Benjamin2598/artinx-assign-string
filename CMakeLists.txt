@@ -19,23 +19,25 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
-# 可选：AddressSanitizer + UndefinedBehaviorSanitizer
+# AddressSanitizer + UndefinedBehaviorSanitizer（默认开启）
 #
-#   cmake -S . -B build-asan -DENABLE_SANITIZERS=ON
-#   cmake --build build-asan -j
-#   ctest --test-dir build-asan --output-on-failure
+#   默认构建即带 ASan+UBSan（环境支持时）：
+#     cmake -S . -B build && cmake --build build -j
+#   如需关闭，做一次不带 sanitizer 的普通构建：
+#     cmake -S . -B build-plain -DENABLE_SANITIZERS=OFF
 #
-# 仅支持 GCC / Clang（Linux、macOS）：开启前会探测编译器是否支持
-# -fsanitize=address,undefined，不支持则直接报错并给出替代方案，避免“以为开了
-# sanitizer 其实没开”。手动指定标志的方法见 docs/build-and-test.md。
+# 仅支持 GCC / Clang（Linux、macOS）：开启时会做一次真实的编译 + 链接探测，
+# 不支持（或使用 MSVC）则直接报错，并提示用 -DENABLE_SANITIZERS=OFF 关闭，
+# 避免“以为开了 sanitizer 其实没开”。手动指定标志的方法见 docs/build-and-test.md。
 # ---------------------------------------------------------------------------
-option(ENABLE_SANITIZERS "Build with AddressSanitizer + UndefinedBehaviorSanitizer" OFF)
+option(ENABLE_SANITIZERS "Build with AddressSanitizer + UndefinedBehaviorSanitizer" ON)
 
 if(ENABLE_SANITIZERS)
   if(MSVC)
     message(FATAL_ERROR
-      "ENABLE_SANITIZERS 仅支持 GCC/Clang。MSVC 请改用 /fsanitize=address，"
-      "详见 docs/build-and-test.md。")
+      "ENABLE_SANITIZERS 默认开启，但仅支持 GCC/Clang。\n"
+      "MSVC 请改用 /fsanitize=address（详见 docs/build-and-test.md）；\n"
+      "若只需不带 sanitizer 的普通构建，请加 -DENABLE_SANITIZERS=OFF。")
   endif()
 
   # 必须做一次真实的编译 + 链接：只检查编译标志（check_cxx_compiler_flag）会因为
@@ -46,9 +48,10 @@ if(ENABLE_SANITIZERS)
   unset(CMAKE_REQUIRED_FLAGS)
   if(NOT COMPILER_SUPPORTS_ASAN_UBSAN)
     message(FATAL_ERROR
-      "当前编译器不支持 -fsanitize=address,undefined，无法开启 ENABLE_SANITIZERS。\n"
-      "请改用 GCC/Clang（例如 -DCMAKE_CXX_COMPILER=clang++），"
-      "或参考 docs/build-and-test.md 手动指定可用的 sanitizer 标志。")
+      "当前编译器不支持 -fsanitize=address,undefined，无法开启默认启用的 ENABLE_SANITIZERS。\n"
+      "请改用 GCC/Clang（例如 -DCMAKE_CXX_COMPILER=clang++），或到 docs/build-and-test.md\n"
+      "查看手动指定 sanitizer 标志的方法；\n"
+      "若只需不带 sanitizer 的普通构建，请加 -DENABLE_SANITIZERS=OFF。")
   endif()
 
   add_compile_options(

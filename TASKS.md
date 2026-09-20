@@ -172,16 +172,20 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 它是你自测和验收的主要依据：
 
 ```bash
-# 常规构建 + 测试
+# 默认构建（已开启 AddressSanitizer + UndefinedBehaviorSanitizer）+ 测试
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 
-# 内存检查（AddressSanitizer + UndefinedBehaviorSanitizer）
-cmake -S . -B build-asan -DENABLE_SANITIZERS=ON
-cmake --build build-asan -j
-ctest --test-dir build-asan --output-on-failure
+# 如需不带 sanitizer 的普通构建
+cmake -S . -B build-plain -DENABLE_SANITIZERS=OFF
+cmake --build build-plain -j
+ctest --test-dir build-plain --output-on-failure
 ```
+
+sanitizer 默认开启：配置阶段会探测编译器是否支持，支持才继续，
+不支持（或使用 MSVC）则直接报错，可用 `-DENABLE_SANITIZERS=OFF` 关闭
+（但关闭后不满足本作业的内存检查要求）。
 
 **不强制要求自行编写测试**，能通过随附测试、并理解其中的边界语义即可；
 非常鼓励你在完成前补充自己的边界用例（例如放到自己的临时文件中，不要修改

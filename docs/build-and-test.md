@@ -8,15 +8,15 @@
 ## 0. 命令一览
 
 ```bash
-# 常规构建 + 测试
+# 默认构建（已开启 ASan + UBSan）+ 测试
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 
-# ASan + UBSan 构建 + 测试
-cmake -S . -B build-asan -DENABLE_SANITIZERS=ON
-cmake --build build-asan -j
-ctest --test-dir build-asan --output-on-failure
+# 不带 sanitizer 的普通构建（需要时）
+cmake -S . -B build-plain -DENABLE_SANITIZERS=OFF
+cmake --build build-plain -j
+ctest --test-dir build-plain --output-on-failure
 ```
 
 ---
@@ -51,7 +51,7 @@ CMake 会自动选择系统默认编译器；想换编译器时在配置阶段�
 
 ---
 
-## 2. 常规构建与测试
+## 2. 构建与测试
 
 ### 2.1 配置与编译
 
@@ -61,6 +61,8 @@ cmake --build build -j
 ```
 
 - `-S .` 指定源码目录，`-B build` 指定构建目录（生成物都放在 `build/`，不会污染源码）；
+- **默认就开启 ASan + UBSan**（详见第 3 节）：配置阶段会探测编译器支持，
+  支持则加上 sanitizer 标志；不支持则直接报错，可加 `-DENABLE_SANITIZERS=OFF` 关闭；
 - 工程已统一开启 `-Wall -Wextra -Wpedantic`，完成前应保证没有任何警告；
 - 未指定 `CMAKE_BUILD_TYPE` 时默认 `Debug`（保留调试信息，便于 ASan 报告定位到行号）；
 - 若你的实现拆成了多个 `.cpp`，把它们加入 `CMakeLists.txt` 里的 `STRING_SOURCES` 列表。
@@ -128,12 +130,30 @@ rm -rf build && cmake -S . -B build && cmake --build build -j
 
 ## 3. AddressSanitizer + UndefinedBehaviorSanitizer
 
-### 3.1 使用 CMake 选项（推荐）
+### 3.1 默认开启与关闭方法
+
+**ASan + UBSan 默认开启**，所以第 2 节的 `build/` 就是内存检查版本：
+
+```bash
+cmake -S . -B build              # 默认即带 ASan+UBSan
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
+
+显式写出开关（与默认行为等价，便于在命令里看清意图）或使用独立目录：
 
 ```bash
 cmake -S . -B build-asan -DENABLE_SANITIZERS=ON
 cmake --build build-asan -j
 ctest --test-dir build-asan --output-on-failure
+```
+
+确实需要不带 sanitizer 的普通构建时：
+
+```bash
+cmake -S . -B build-plain -DENABLE_SANITIZERS=OFF
+cmake --build build-plain -j
+ctest --test-dir build-plain --output-on-failure
 ```
 
 开启后工程会为**编译与链接**都加上：
@@ -150,15 +170,17 @@ ctest --test-dir build-asan --output-on-failure
 `check_cxx_compiler_flag`）：
 
 - 编译器支持 → 正常生成；
-- 编译器不支持（或使用 MSVC）→ CMake **直接报错**并给出替代做法，
-  不会静默退化成普通构建，避免“以为开了 sanitizer 其实没开”。
+- 编译器不支持（或使用 MSVC）→ CMake **直接报错**并提示改用 GCC/Clang 或加
+  `-DENABLE_SANITIZERS=OFF`，不会静默退化成普通构建，避免“以为开了 sanitizer
+  其实没开”。
 
 ### 3.2 手动指定标志（备用方案）
 
-不想用（或改不了）上面的选项时，可以绕过 CMake 选项手动指定：
+不想用（或改不了）上面的选项时，可以绕过 CMake 选项手动指定（记得同时用
+`-DENABLE_SANITIZERS=OFF` 关掉默认的探测与报错）：
 
 ```bash
-cmake -S . -B build-asan \
+cmake -S . -B build-asan -DENABLE_SANITIZERS=OFF \
   -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
   -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
 cmake --build build-asan -j
@@ -231,10 +253,12 @@ Direct leak of 17 byte(s) in 1 object(s) allocated from:
 **Q2. `ctest --test-dir` 报 `unrecognized option`？**
 CMake 版本低于 3.20，改用 `cd build && ctest --output-on-failure`。
 
-**Q3. `-DENABLE_SANITIZERS=ON` 时 CMake 直接报错？**
-说明当前编译器不支持 `-fsanitize=address,undefined`。可以：
+**Q3. 配置时报错说编译器不支持 `-fsanitize=address,undefined`？**
+ASan/UBSan 默认开启，因此配置阶段会做真实探测，不支持就会直接报错。可以：
 换用 `-DCMAKE_CXX_COMPILER=clang++`；升级 GCC；或改用 WSL2 / Docker。
-如果只想开 ASan，按 3.2 节手动指定 `-fsanitize=address`。
+如果只想开 ASan，按 3.2 节手动指定 `-fsanitize=address`（同时加
+`-DENABLE_SANITIZERS=OFF`）；确实不需要 sanitizer 时加 `-DENABLE_SANITIZERS=OFF`
+做普通构建（但不满足作业的内存检查要求）。
 
 **Q4. ASan 报错里没有函数名和行号？**
 确认构建类型是 `Debug`（默认即是，带 `-g`），并保留 `-fno-omit-frame-pointer`。
@@ -262,9 +286,10 @@ CMake 版本低于 3.20，改用 `cd build && ctest --output-on-failure`。
 
 ## 5. 完成前自检清单
 
-- [ ] `cmake --build build -j` 无警告通过；
+- [ ] 默认（ASan + UBSan）构建：`cmake --build build -j` 无警告通过；
 - [ ] `ctest --test-dir build --output-on-failure` 输出 `ALL TESTS PASSED`（412 项检查）；
-- [ ] `ctest --test-dir build-asan --output-on-failure` 无 ASan/UBSan 报错；
+- [ ] `-DENABLE_SANITIZERS=OFF` 的普通构建同样全部通过、无警告；
+- [ ] sanitizer 构建下无 ASan/UBSan 报错；
 - [ ] 空串、长串、多次扩容、自赋值、自移动、自插入、自交换、非法位置异常都想过一遍；
 - [ ] 没有使用 `std::string` / `std::string_view` / 任何 STL 容器；
 - [ ] 没有修改 `tests/` 与公开接口签名；

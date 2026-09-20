@@ -16,7 +16,7 @@
 
 ```text
 assignment2-string/
-├── CMakeLists.txt              # 构建脚本（自带 -DENABLE_SANITIZERS=ON 选项）
+├── CMakeLists.txt              # 构建脚本（默认开启 ASan+UBSan，可关闭）
 ├── README.md                   # 本文件：概览、快速开始与验收
 ├── TASKS.md                    # 作业要求（接口、语义、约束）
 ├── docs/
@@ -51,6 +51,15 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
+> **默认构建就开启了 ASan + UBSan**（配置阶段会探测编译器支持）。
+> 如果想做一次不带 sanitizer 的普通构建，加 `-DENABLE_SANITIZERS=OFF`：
+>
+> ```bash
+> cmake -S . -B build-plain -DENABLE_SANITIZERS=OFF
+> cmake --build build-plain -j
+> ctest --test-dir build-plain --output-on-failure
+> ```
+>
 > **刚开始构建失败是预期的**：`src/my_string.cpp` 目前为空，链接阶段会报
 > `undefined reference to 'String::...'`。按 [`TASKS.md`](TASKS.md) 完成实现后，
 > 构建与测试即可通过。测试程序共 412 项检查，全部通过时最后输出 `ALL TESTS PASSED`。
@@ -63,21 +72,28 @@ ctest --test-dir build --output-on-failure
 
 ### 内存检查（ASan + UBSan）
 
+ASan + UBSan 已默认开启，所以上文 `build/` 里的测试就是内存检查版本：
+配置阶段会先做一次真实的编译 + 链接探测，支持 `-fsanitize=address,undefined`
+才继续；不支持（或使用 MSVC）时 CMake 直接报错，并提示改用 GCC/Clang 或加
+`-DENABLE_SANITIZERS=OFF` 关闭——不会静默退化成普通构建。
+
+显式写出开关（与默认行为等价）或需要独立目录时：
+
 ```bash
 cmake -S . -B build-asan -DENABLE_SANITIZERS=ON
 cmake --build build-asan -j
 ctest --test-dir build-asan --output-on-failure
 ```
 
-`-DENABLE_SANITIZERS=ON` 会先探测编译器是否支持
-`-fsanitize=address,undefined`，再为编译和链接加上
-`-fno-omit-frame-pointer -fno-sanitize-recover=all`；不支持时 CMake 会直接报错
-并提示替代做法，不会静默跳过。手动指定标志、各平台注意事项与报错解读见
+开启后编译与链接都会加上
+`-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all`。
+手动指定标志、各平台注意事项、常见报错解读见
 [`docs/build-and-test.md`](docs/build-and-test.md)。
 
 ## 验收标准
 
-1. `tests/string_tests.cpp` 在常规构建与 ASan/UBSan 构建下全部通过；
+1. `tests/string_tests.cpp` 在默认的 ASan/UBSan 构建与 `-DENABLE_SANITIZERS=OFF`
+   的普通构建下均全部通过；
 2. 无编译警告（工程统一开启 `-Wall -Wextra -Wpedantic`）；
 3. 未使用 `std::string`、`std::string_view` 或任何 STL 容器；
 4. 边界情况正确：空串、长串、多次扩容、自赋值、自移动、自插入、自交换，
