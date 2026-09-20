@@ -1,0 +1,192 @@
+# 作业 2：实现自定义 String 类
+
+## 1. 作业概述
+
+在本次作业中，你需要设计并实现一个基于 `char` 数组的 `String` 类。
+**本次作业只需要实现 `String` 这一个类**，没有其他类或附加任务。
+
+完成标准：
+
+- 代码在 C++17 下无警告编译，通过随附的全部自动测试；
+- 在 AddressSanitizer + UndefinedBehaviorSanitizer 下无任何错误报告；
+- 除“被移动后”的对象外，所有对象始终保存以 `'\0'` 结尾的字符串，空串同样是有效状态；
+- 不使用 `std::string` 及任何 STL 容器代替自己实现的功能。
+
+仓库中 `include/my_string.h` 已给出必须实现的公开接口，`src/my_string.cpp` 是空的；
+你的工作就是补全私有数据成员并实现全部成员函数与运算符。
+
+## 2. 目录结构
+
+```text
+assignment2-string/
+├── CMakeLists.txt              # 构建脚本（含 sanitizer 选项）
+├── README.md                   # 快速开始、验收标准与自检
+├── TASKS.md                    # 本文件：作业要求
+├── docs/
+│   └── build-and-test.md       # 构建、测试、ASan/UBSan 详解与 FAQ
+├── include/
+│   └── my_string.h             # 公开接口（需要你补私有成员）
+├── src/
+│   └── my_string.cpp           # 实现文件（留空，需要你填写）
+└── tests/
+    └── string_tests.cpp        # 随附自动测试（请勿修改）
+```
+
+## 3. 功能要求
+
+### 3.1 构造、析构与赋值（Rule of Five）
+
+```cpp
+String();                                     // 空字符串，设置一个合理的初始容量（例如 16）
+String(const char* str);                      // C 字符串构造；nullptr 视为空串，不允许 UB
+String(const String& other);                  // 拷贝构造（深拷贝）
+String(String&& other) noexcept;              // 移动构造（窃取缓冲区）
+~String();                                    // 析构，释放全部动态内存
+String& operator=(const String& other);       // 复制赋值
+String& operator=(String&& other) noexcept;   // 移动赋值
+```
+
+- 拷贝构造与复制赋值必须**深拷贝**：两个对象不共享任何缓冲区；
+- 移动构造与移动赋值必须为 `noexcept`，可以“窃取”资源，但被移动对象必须保持
+  “有效但内容未指定”的状态（见 4.2）；
+- 复制赋值必须自赋值安全（`s = s` 不得释放自己的缓冲区）。
+
+### 3.2 拼接与下标
+
+```cpp
+String operator+(const String& other) const;  // 拼接，返回新对象，不修改操作数
+
+char& operator[](std::size_t index) noexcept;             // 不做边界检查
+const char& operator[](std::size_t index) const noexcept;
+
+char& at(std::size_t index);                  // 带边界检查
+const char& at(std::size_t index) const;      // 越界抛出 std::out_of_range
+```
+
+`operator[]` 与 `std::string` 一致，不做边界检查，测试不会传入越界位置；
+带检查的访问请使用 `at()`。
+
+### 3.3 长度与容量
+
+```cpp
+std::size_t size() const noexcept;      // 当前长度（不含结尾 '\0'）
+std::size_t capacity() const noexcept;  // 当前容量（不含结尾 '\0'）
+```
+
+容量语义统一为：**`capacity()` 不包含结尾的 `'\0'`**，缓冲区实际可容纳
+`capacity() + 1` 个字节，且恒有 `c_str()[size()] == '\0'`。
+你的测试与文档描述都应与该语义一致（随附测试即按此语义编写）。
+
+### 3.4 插入与追加
+
+```cpp
+void insert(std::size_t pos, const String& str);  // 在 pos 处插入 str
+void push_back(char ch);                          // 末尾追加一个字符
+```
+
+- `insert`：`pos > size()` 时抛出 `std::out_of_range`；
+- `insert` 必须正确处理自插入（如 `s.insert(0, s)`、`s.insert(s.size(), s)`），
+  扩容与原地移动都不能破坏源数据；
+- `push_back`：容量不足时自动扩容，追加后仍以 `'\0'` 结尾；
+- 两个函数在内存分配失败时都必须保持原对象内容不变。
+
+### 3.5 类型转换与流操作
+
+```cpp
+const char* c_str() const noexcept;           // 返回以 '\0' 结尾的内部缓冲区
+operator const char*() const noexcept;        // 隐式转换
+
+friend std::ostream& operator<<(std::ostream& os, const String& str);
+friend std::istream& operator>>(std::istream& is, String& str);
+```
+
+- `c_str()` 返回的指针仅在对象未被修改、未被移动、未析构前有效；
+  对任何对象（包括被移动过的）调用 `c_str()` 都必须返回一个有效的、以 `'\0'`
+  结尾的指针，不得返回 `nullptr` 或导致 UB；
+- `operator<<` 按 `size()` 写出内容（可含 `'\0'`，与 `std::string` 一致）；
+- `operator>>` 跳过前导空白、读到空白为止；未读到任何字符时置 `failbit`
+  且保持原值不变。
+
+### 3.6 交换
+
+```cpp
+void swap(String& other) noexcept;  // 交换两个对象的全部内容，自交换也必须安全
+```
+
+交换后两个对象的长度、容量与数据整体互换，且都保持以 `'\0'` 结尾。
+
+### 3.7 接口速查
+
+| 成员 | 说明 |
+| --- | --- |
+| `String()` | 空串，容量合理（建议 ≥ 16） |
+| `String(const char*)` | 由 C 字符串构造，`nullptr` 视为空串 |
+| 拷贝 / 移动构造、拷贝 / 移动赋值 | Rule of Five，深拷贝 / 窃取 |
+| `operator+` | 拼接，返回新对象 |
+| `operator[]` | 无边界检查（与 `std::string` 一致） |
+| `at()` | 有边界检查，越界抛 `std::out_of_range` |
+| `size()` / `capacity()` | 长度 / 容量（容量不含 `'\0'`） |
+| `insert(pos, str)` | 插入，`pos > size()` 抛异常，自插入安全 |
+| `push_back(ch)` | 末尾追加一个字符，自动扩容 |
+| `c_str()` / `operator const char*` | 转 C 字符串 |
+| `swap(other)` | 交换全部内容，自交换安全 |
+| `operator<<` / `operator>>` | 流输入输出 |
+
+## 4. 设计约束
+
+### 4.1 内存管理
+
+- 每个对象独占自己的缓冲区，析构时释放干净，不允许内存泄漏或双重释放；
+- 长度达到容量时应重新分配内存并复制原有数据，扩容后容量不得小于所需长度；
+- 复制赋值与扩容必须**先成功分配新内存，再修改原对象**，至少提供强异常安全保证：
+  一旦抛出异常（如 `std::bad_alloc`），原对象内容必须保持原样。
+
+### 4.2 被移动后的对象
+
+移动操作后，源对象处于“**有效但内容未指定**”的状态：
+
+- 必须可以安全析构、可以重新赋值；
+- 程序不得依赖其内容或 `size()` 的取值；
+- 再次对其实施移动等操作也不允许出现 UB 或双重释放。
+
+### 4.3 自操作
+
+自赋值、自移动赋值、自插入（`s.insert(pos, s)`）与自交换都必须有确定行为：
+语义等价于“对同一对象做一次普通操作”，不得出现数据损坏或重复释放。
+
+### 4.4 允许与禁止
+
+- **禁止**：使用 `std::string`、`std::string_view` 或任何 STL 容器
+  （`std::vector`、`std::list`、`std::map`……）来替代本作业要求你自己实现的功能；
+- **允许**：`new[]` / `delete[]`、`std::move`、异常类型（如 `std::out_of_range`）、
+  `<iostream>` / `<istream>` / `<ostream>` 等必要的标准库设施；
+- **建议**：尽量不使用 `<cstring>` 的 `strlen` / `memcpy` / `memmove`，
+  自己写循环完成对应功能——这是本作业的训练目标之一。使用它们不算违规，
+  但你必须说得清其语义与和手写实现的关系；
+- 不得修改 `tests/` 下的测试文件；不得改动 `include/my_string.h` 中公开接口的
+  函数名、参数、返回类型、`const` / `noexcept` 与异常语义。
+
+## 5. 测试与验收
+
+仓库已自带完整的自动测试（`tests/string_tests.cpp`，当前版本 412 项检查），
+它是你自测和验收的主要依据：
+
+```bash
+# 常规构建 + 测试
+cmake -S . -B build
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+
+# 内存检查（AddressSanitizer + UndefinedBehaviorSanitizer）
+cmake -S . -B build-asan -DENABLE_SANITIZERS=ON
+cmake --build build-asan -j
+ctest --test-dir build-asan --output-on-failure
+```
+
+**不强制要求自行编写测试**，能通过随附测试、并理解其中的边界语义即可；
+非常鼓励你在完成前补充自己的边界用例（例如放到自己的临时文件中，不要修改
+`tests/string_tests.cpp`）。评分不会只看“测试是否变绿”，还会关注实现是否真正满足
+上述语义与内存安全要求，请勿针对测试输出硬编码。
+
+`docs/build-and-test.md` 中给出了更详细的构建说明、单测失败定位方法、
+sanitizer 报告解读与常见问题排查。
