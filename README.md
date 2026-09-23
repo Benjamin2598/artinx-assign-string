@@ -12,6 +12,10 @@
 - 深拷贝值语义，以及自赋值、自移动、自插入、自交换等边界情况；
 - 强异常安全（分配失败时原对象不被破坏）与内存安全（ASan/UBSan 零报告）。
 
+> 没学过异常或 `noexcept` 也不影响开始：本作业只用到很少一点。
+> 建议先花 10 分钟浏览 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)
+> （异常、异常安全、移动语义、`noexcept` 的先修知识，含新手常见报错）。
+
 ## 仓库结构
 
 ```text
@@ -20,7 +24,8 @@ assignment2-string/
 ├── README.md                   # 本文件：概览、快速开始与验收
 ├── TASKS.md                    # 作业要求（接口、语义、约束）
 ├── docs/
-│   └── build-and-test.md       # 构建 / 测试 / ASan+UBSan 详解与 FAQ
+│   ├── build-and-test.md       # 构建 / 测试 / ASan+UBSan 详解与 FAQ
+│   └── exceptions-and-moves.md # 先修知识：异常、异常安全、移动语义、noexcept
 ├── include/
 │   └── my_string.h             # String 的公开接口（需要你补私有数据成员）
 ├── src/

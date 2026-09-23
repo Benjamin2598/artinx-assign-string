@@ -49,6 +49,9 @@ cmake --version
 CMake 会自动选择系统默认编译器；想换编译器时在配置阶段指定
 `-DCMAKE_CXX_COMPILER=clang++`（或 `g++`）即可。
 
+> 对异常、`noexcept` 或移动语义不熟悉时，先看
+> [`exceptions-and-moves.md`](exceptions-and-moves.md)，里面解释了本作业会用到的全部相关语法。
+
 ---
 
 ## 2. 构建与测试
@@ -281,6 +284,12 @@ ASan/UBSan 默认开启，因此配置阶段会做真实探测，不支持就会
 **Q8. 可以自己加测试文件吗？**
 可以，也非常鼓励；但请**新建自己的文件**，不要修改 `tests/string_tests.cpp`。
 随附测试是你验收的主要依据。
+
+**Q9. 编译报 `has a different exception specifier`？**
+说明该函数的声明里有 `noexcept`，但 `.cpp` 的定义里漏写了。把 `noexcept`
+原样补上即可（移动构造、移动赋值、`operator[]`、`size`、`capacity`、`c_str`、
+转换、`swap` 都带 `noexcept`）。详见
+[`exceptions-and-moves.md`](exceptions-and-moves.md) 第 4 节。
 
 ---
 

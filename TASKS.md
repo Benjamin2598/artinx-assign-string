@@ -23,7 +23,8 @@ assignment2-string/
 ├── README.md                   # 快速开始、验收标准与自检
 ├── TASKS.md                    # 本文件：作业要求
 ├── docs/
-│   └── build-and-test.md       # 构建、测试、ASan/UBSan 详解与 FAQ
+│   ├── build-and-test.md       # 构建、测试、ASan/UBSan 详解与 FAQ
+│   └── exceptions-and-moves.md # 先修知识：异常、异常安全、移动语义与 noexcept
 ├── include/
 │   └── my_string.h             # 公开接口（需要你补私有成员）
 ├── src/
@@ -49,6 +50,8 @@ String& operator=(String&& other) noexcept;   // 移动赋值
 - 拷贝构造与复制赋值必须**深拷贝**：两个对象不共享任何缓冲区；
 - 移动构造与移动赋值必须为 `noexcept`，可以“窃取”资源，但被移动对象必须保持
   “有效但内容未指定”的状态（见 4.2）；
+- `noexcept` 是函数签名的一部分：声明里写了，`.cpp` 的定义里必须原样写，
+  否则编译报错（见 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)）；
 - 复制赋值必须自赋值安全（`s = s` 不得释放自己的缓冲区）。
 
 ### 3.2 拼接与下标
@@ -65,6 +68,30 @@ const char& at(std::size_t index) const;      // 越界抛出 std::out_of_range
 
 `operator[]` 与 `std::string` 一致，不做边界检查，测试不会传入越界位置；
 带检查的访问请使用 `at()`。
+
+#### 异常最小知识（本作业唯一需要主动抛异常的地方）
+
+`at()` 与 `insert()` 越界时要抛 `std::out_of_range`：
+
+```cpp
+#include <stdexcept>  // std::out_of_range
+
+throw std::out_of_range("String::at: index out of range");
+```
+
+随附测试用下面的方式验证（你只要保证确实抛出即可）：
+
+```cpp
+try {
+    (void)s.at(999);
+} catch (const std::out_of_range&) {
+    // 捕获到即说明实现正确
+}
+```
+
+`std::bad_alloc`（`new[]` 失败时自动抛出）不需要你写 `throw`，但实现要在这种
+失败下保持对象不变（见 4.1）。完整的异常、异常安全、移动语义与 `noexcept` 讲解见
+[`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
 
 ### 3.3 长度与容量
 
@@ -140,6 +167,9 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 - 长度达到容量时应重新分配内存并复制原有数据，扩容后容量不得小于所需长度；
 - 复制赋值与扩容必须**先成功分配新内存，再修改原对象**，至少提供强异常安全保证：
   一旦抛出异常（如 `std::bad_alloc`），原对象内容必须保持原样。
+  这里的“强异常安全”指：操作要么成功，要么对象与操作前完全一样，不能出现
+  “旧缓冲区已释放、新缓冲区又没分配成功”的悬空状态；实现口诀是
+  “先分配成功、再释放旧的”，详见 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
 
 ### 4.2 被移动后的对象
 
@@ -147,7 +177,9 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 
 - 必须可以安全析构、可以重新赋值；
 - 程序不得依赖其内容或 `size()` 的取值；
-- 再次对其实施移动等操作也不允许出现 UB 或双重释放。
+- 再次对其实施移动等操作也不允许出现 UB 或双重释放；
+- 移动安全的具体做法（源对象置空、自移动特判等）见
+  [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
 
 ### 4.3 自操作
 
@@ -193,4 +225,5 @@ sanitizer 默认开启：配置阶段会探测编译器是否支持，支持才�
 上述语义与内存安全要求，请勿针对测试输出硬编码。
 
 `docs/build-and-test.md` 中给出了更详细的构建说明、单测失败定位方法、
-sanitizer 报告解读与常见问题排查。
+sanitizer 报告解读与常见问题排查；异常、异常安全、移动语义与 `noexcept` 的
+先修知识见 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
