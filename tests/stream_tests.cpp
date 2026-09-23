@@ -1,7 +1,7 @@
 // String 类流运算符（<< / >>）的自动测试 —— 选做（bonus）。
 //
-// 单独成文件的目的：流操作是选做内容，未实现时基线测试（tests/string_tests.cpp）
-// 依然可以正常构建与通过。
+// 单独成文件的目的：流操作是选做内容，未实现时里程碑测试
+// （tests/m1_basics.cpp ~ tests/m4_edge_cases.cpp）依然可以正常构建与通过。
 //
 // 构建与运行方式（默认不构建本目标）：
 //   cmake -S . -B build -DENABLE_BONUS_TESTS=ON

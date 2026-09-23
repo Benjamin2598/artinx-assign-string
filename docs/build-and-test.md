@@ -17,6 +17,13 @@ ctest --test-dir build --output-on-failure
 cmake -S . -B build-plain -DENABLE_SANITIZERS=OFF
 cmake --build build-plain -j
 ctest --test-dir build-plain --output-on-failure
+
+# 只跑一个里程碑（定位更快）
+ctest --test-dir build -R m1_basics --output-on-failure
+
+# 便捷目标：只构建全部测试 / 构建并运行全部测试
+cmake --build build --target all_tests
+cmake --build build --target check
 ```
 
 ---
@@ -52,6 +59,9 @@ CMake 会自动选择系统默认编译器；想换编译器时在配置阶段�
 > 对异常、`noexcept` 或移动语义不熟悉时，先看
 > [`guide.md`](guide.md)，里面解释了本作业会用到的全部相关语法，
 > 并给出关键函数的实现骨架。
+>
+> 用 VS Code 的同学：仓库已预置 clangd + CodeLLDB 配置（补全、跳转、断点调试），
+> 说明见 [`vscode.md`](vscode.md)。
 
 ---
 
@@ -68,12 +78,14 @@ cmake --build build -j
 - **默认就开启 ASan + UBSan**（详见第 3 节）：配置阶段会探测编译器支持，
   支持则加上 sanitizer 标志；不支持则直接报错，可加 `-DENABLE_SANITIZERS=OFF` 关闭；
 - 工程已统一开启 `-Wall -Wextra -Wpedantic`，完成前应保证没有任何警告；
+- 工程已开启 `CMAKE_EXPORT_COMPILE_COMMANDS`，配置后会在 `build/` 下生成
+  `compile_commands.json`（clangd / VS Code 补全与跳转依赖它）；
 - 未指定 `CMAKE_BUILD_TYPE` 时默认 `Debug`（保留调试信息，便于 ASan 报告定位到行号）；
 - 若你的实现拆成了多个 `.cpp`，把它们加入 `CMakeLists.txt` 里的 `STRING_SOURCES` 列表。
 
-### 2.2 首次构建的“预期失败”
+### 2.2 首次构建的“预期失败”与里程碑推进
 
-拿到仓库时 `src/my_string.cpp` 是空的，因此链接 `string_tests` 时会出现类似报错：
+拿到仓库时 `src/my_string.cpp` 是空的，因此链接各个里程碑测试时会出现类似报错：
 
 ```text
 undefined reference to `String::String()'
@@ -82,8 +94,14 @@ undefined reference to `String::size() const'
 collect2: error: ld returned 1 exit status
 ```
 
-这**不是环境问题**，而是提醒你还有函数没有实现。每完成一部分实现，重新执行
-`cmake --build build -j` 即可；全部实现后此错误自然消失。
+这**不是环境问题**，而是提醒你还有函数没有实现。四个测试程序相互独立：
+
+- `m1_basics` 的链接错误就是 **M1 的待实现清单**；把 M1 实现完，`m1_basics`
+  就能链接并通过；
+- 然后看 `m2_value_semantics` 缺哪些函数，依此类推（M3 → M4）。
+
+每次改完代码，重新执行 `cmake --build build -j` 即可；也可以只构建某一个目标，
+例如 `cmake --build build --target m1_basics`。
 
 ### 2.3 运行测试
 
@@ -91,21 +109,25 @@ collect2: error: ld returned 1 exit status
 # 方式一：通过 CTest（推荐，等价于验收命令）
 ctest --test-dir build --output-on-failure
 
-# 方式二：直接运行测试程序
-./build/string_tests
+# 只跑一个里程碑
+ctest --test-dir build -R m1_basics --output-on-failure
+
+# 方式二：直接运行某个测试程序
+./build/m1_basics
 ```
 
-测试程序逐条输出用例结果，形如：
+测试程序逐条输出用例结果（进度与失败信息在 stderr，最终汇总在 stdout，
+CTest 会一并显示），形如：
 
 ```text
 [ RUN      ] default_constructed_empty
 [       OK ] default_constructed_empty
 ...
-[ RUN      ] insert_basic
-tests/string_tests.cpp:372: CHECK failed: c_str(s) == expected (actual="aXYbcd", expected="abXYcd")
-[   FAILED ] insert_basic
+[ RUN      ] at
+tests/m1_basics.cpp:88: CHECK failed: cs.at(2) throws std::out_of_range
+[   FAILED ] at
 
-checks: 401, failures: 1
+checks: 242, failures: 1
 TESTS FAILED
 ```
 
@@ -125,10 +147,17 @@ cd build && ctest --output-on-failure
 rm -rf build && cmake -S . -B build && cmake --build build -j
 ```
 
-### 2.5 只调试某几条用例
+### 2.5 只跑某一个里程碑
 
-测试程序在 `main()` 中按顺序调用 `run("名字", 函数)`。调试时可以临时把不需要的
-`run(...)` 行注释掉，只保留目标用例，最后**完成后务必还原** `tests/string_tests.cpp`。
+测试已按里程碑拆成独立程序，一般不需要自己裁剪测试代码：
+
+```bash
+ctest --test-dir build -R m3_move --output-on-failure   # 正则匹配测试名
+./build/m3_move                                          # 或直接运行
+```
+
+想单步看某一条用例，可以用调试器（见 [`vscode.md`](vscode.md)）；
+想写自己的实验代码，请**新建文件**，不要修改 `tests/` 下的文件。
 
 ### 2.6 选做（bonus）：流运算符测试
 
@@ -141,9 +170,9 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-开启后会多出一个可执行文件 `string_bonus_tests`，CTest 会同时运行基线与
-bonus 两个测试（基线 401 项 + bonus 11 项）。命令上也已写在
-`../TASKS.md` 第 6 节；实现思路见 [`guide.md`](guide.md) 第 10 节。
+开启后会多出一个可执行文件 `bonus_stream`，CTest 会同时运行 m1~m4 与
+bonus_stream。命令上也已写在 `../TASKS.md` 第 6 节；实现思路见
+[`guide.md`](guide.md) 第 10 节。
 
 ---
 
@@ -218,7 +247,7 @@ cmake -S . -B build-asan -DCMAKE_CXX_FLAGS="-fsanitize=address -fno-omit-frame-p
 也可显式打开：
 
 ```bash
-ASAN_OPTIONS=detect_leaks=1 ./build-asan/string_tests
+ASAN_OPTIONS=detect_leaks=1 ./build-asan/m1_basics
 ```
 
 出现泄漏时报告形如：
@@ -298,7 +327,7 @@ ASan/UBSan 默认开启，因此配置阶段会做真实探测，不支持就会
 下的警告清零（常见如未使用参数、有符号/无符号比较等）。
 
 **Q8. 可以自己加测试文件吗？**
-可以，也非常鼓励；但请**新建自己的文件**，不要修改 `tests/string_tests.cpp`。
+可以，也非常鼓励；但请**新建自己的文件**，不要修改 `tests/` 下的任何文件。
 随附测试是你验收的主要依据。
 
 **Q9. 编译报 `has a different exception specifier`？**
@@ -308,17 +337,20 @@ ASan/UBSan 默认开启，因此配置阶段会做真实探测，不支持就会
 
 **Q10. 为什么 ctest 没有跑流运算符（`<<` / `>>`）的测试？**
 流操作是选做 bonus，默认不构建。需要加 `-DENABLE_BONUS_TESTS=ON` 配置，
-构建后会多出 `string_bonus_tests` 并自动注册到 CTest（见 2.6 节）。
+构建后会多出 `bonus_stream` 并自动注册到 CTest（见 2.6 节）。
 
 ---
 
 ## 5. 完成前自检清单
 
 - [ ] 默认（ASan + UBSan）构建：`cmake --build build -j` 无警告通过；
-- [ ] `ctest --test-dir build --output-on-failure` 输出 `ALL TESTS PASSED`（基线 401 项检查）；
+- [ ] `ctest --test-dir build --output-on-failure` 四个里程碑全部 Passed，
+      每个测试程序单独运行时最后输出 `ALL TESTS PASSED`
+      （m1 242 项 / m2 79 项 / m3 20 项 / m4 76 项检查）；
 - [ ] `-DENABLE_SANITIZERS=OFF` 的普通构建同样全部通过、无警告；
 - [ ] sanitizer 构建下无 ASan/UBSan 报错；
-- [ ] （选做）`-DENABLE_BONUS_TESTS=ON` 后 bonus 流测试 11 项也全过；
-- [ ] 空串、长串、多次扩容、自赋值、自移动、自插入、自交换、非法位置异常都想过一遍；
+- [ ] （选做）`-DENABLE_BONUS_TESTS=ON` 后 `bonus_stream`（11 项）也全过；
+- [ ] 空串（默认构造容量 ≥ 16）、长串、多次扩容、自赋值、自移动、自插入、
+      自交换、非法位置异常都想过一遍；
 - [ ] 没有使用 `std::string` / `std::string_view` / 任何 STL 容器；
-- [ ] 没有修改 `tests/` 与公开接口签名；
+- [ ] 没有修改 `tests/`；公开接口签名未被改动（测试里的 `static_assert` 会强制检查）；

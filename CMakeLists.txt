@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# 导出 compile_commands.json（放在 build/ 下）：clangd 依赖它做补全与跳转，
+# VS Code 配置见 .vscode/ 与 docs/vscode.md。
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # 未指定构建类型时默认 Debug（保留调试信息，且不会定义 NDEBUG）
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
@@ -77,12 +81,41 @@ set(STRING_SOURCES
 add_library(string_lib STATIC ${STRING_SOURCES})
 target_include_directories(string_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-add_executable(string_tests tests/string_tests.cpp)
-target_link_libraries(string_tests PRIVATE string_lib)
+# ---------------------------------------------------------------------------
+# 里程碑测试（M1/M2 必做，M3/M4 进阶）
+#
+# 每个里程碑一个独立的可执行文件。测试只引用"本里程碑及更早里程碑"的函数，
+# 所以只实现了 M1 时，m1_basics 也能链接并运行——先看到 M1 变绿，再往下做。
+# 第一次构建时的链接错误（undefined reference）就是该里程碑还没实现的函数清单。
+#
+#   cmake --build build --target all_tests   # 只构建全部里程碑测试
+#   cmake --build build --target check       # 构建并运行全部测试
+# ---------------------------------------------------------------------------
+set(MILESTONE_TESTS
+  m1_basics
+  m2_value_semantics
+  m3_move
+  m4_edge_cases
+)
 
-if(BUILD_TESTING)
-  add_test(NAME string_tests COMMAND string_tests)
-endif()
+foreach(test_name IN LISTS MILESTONE_TESTS)
+  add_executable(${test_name} tests/${test_name}.cpp)
+  target_link_libraries(${test_name} PRIVATE string_lib)
+  target_include_directories(${test_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+  if(BUILD_TESTING)
+    add_test(NAME ${test_name} COMMAND ${test_name})
+  endif()
+endforeach()
+
+# 聚合目标：一次构建全部里程碑测试
+add_custom_target(all_tests DEPENDS ${MILESTONE_TESTS})
+
+# 便捷目标：构建并运行全部测试
+add_custom_target(check
+  COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+  DEPENDS ${MILESTONE_TESTS}
+  USES_TERMINAL
+)
 
 # ---------------------------------------------------------------------------
 # 选做（bonus）：流运算符 << / >> 的测试
@@ -91,15 +124,21 @@ endif()
 #   cmake --build build -j
 #   ctest --test-dir build --output-on-failure
 #
-# 默认不构建：未实现流操作时，基线测试（string_tests）仍能正常构建与通过。
+# 默认不构建：未实现流操作时，里程碑测试（m1_basics ~ m4_edge_cases）
+# 仍能正常构建与通过。
 # ---------------------------------------------------------------------------
 option(ENABLE_BONUS_TESTS "Build the optional stream-operator tests" OFF)
 
 if(ENABLE_BONUS_TESTS)
-  add_executable(string_bonus_tests tests/stream_tests.cpp)
-  target_link_libraries(string_bonus_tests PRIVATE string_lib)
+  add_executable(bonus_stream tests/stream_tests.cpp)
+  target_link_libraries(bonus_stream PRIVATE string_lib)
+  target_include_directories(bonus_stream PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
   if(BUILD_TESTING)
-    add_test(NAME string_bonus_tests COMMAND string_bonus_tests)
+    add_test(NAME bonus_stream COMMAND bonus_stream)
   endif()
+
+  # 开启 bonus 时，all_tests / check 也覆盖 bonus
+  add_dependencies(all_tests bonus_stream)
+  add_dependencies(check bonus_stream)
 endif()

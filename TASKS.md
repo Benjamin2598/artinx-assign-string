@@ -15,6 +15,23 @@
 选做（bonus）：第 6 节的流运算符 `<<` / `>>`。不实现不影响上述验收；
 实现了可以额外运行 bonus 测试（见 5、6 节）。
 
+### 1.1 里程碑与分级
+
+测试按难度拆成 4 个里程碑，**每个里程碑一个独立的测试程序**，只引用「本里程碑及
+更早里程碑」的函数。因此只实现 M1 时 `m1_basics` 也能链接并通过，它的链接错误就是
+M1 的待实现清单；然后再按 M2 → M3 → M4 依次往下做。
+
+| 里程碑 | 内容 | 测试程序 | 分级 |
+| --- | --- | --- | --- |
+| M1 | 封装与不变量：构造/析构、`size`/`capacity`、`[]`、`at`、`c_str`、`push_back` | `tests/m1_basics.cpp` | **必做** |
+| M2 | 值语义：拷贝构造 / 复制赋值 / 自赋值 / `operator+` / `insert`（含越界异常） | `tests/m2_value_semantics.cpp` | **必做** |
+| M3 | 移动语义：移动构造 / 移动赋值、`noexcept`、被移动后对象的有效性 | `tests/m3_move.cpp` | 进阶 |
+| M4 | 边界与自操作：自插入、自交换、容量边界、空串自操作、深拷贝压力测试 | `tests/m4_edge_cases.cpp` | 进阶 |
+| bonus | 流运算符 `<<` / `>>` | `tests/stream_tests.cpp` | 选做 |
+
+> 提示：里程碑只保证「测试程序本身」不依赖更高的里程碑；如果你的实现内部用到了
+> 移动操作（例如 `insert` 里用 `std::move`），那就需要把对应函数也实现出来。
+
 仓库中 `include/my_string.h` 已给出必须实现的公开接口，`src/my_string.cpp` 是空的；
 你的工作就是补全私有数据成员并实现全部成员函数与运算符。
 
@@ -24,17 +41,23 @@
 assignment2-string/
 ├── CMakeLists.txt              # 构建脚本（含 sanitizer 选项）
 ├── README.md                   # 快速开始、验收标准与自检
-├── TASKS.md                    # 本文件：作业要求
+├── TASKS.md                    # 本文件：作业要求与评分构成
+├── .vscode/                    # VS Code 预置配置（clangd + CodeLLDB）
 ├── docs/
 │   ├── build-and-test.md       # 构建、测试、ASan/UBSan 详解与 FAQ
-│   └── guide.md                # 教学指南：先修概念 + 实现骨架
+│   ├── guide.md                # 教学指南：先修概念 + 实现骨架
+│   └── vscode.md               # VS Code 配置说明与排错
 ├── include/
 │   └── my_string.h             # 公开接口（需要你补私有成员）
 ├── src/
 │   └── my_string.cpp           # 实现文件（留空，需要你填写）
-└── tests/
-    ├── string_tests.cpp        # 基线自动测试（必做，请勿修改）
-    └── stream_tests.cpp        # 流操作 bonus 测试（选做，请勿修改）
+└── tests/                      # 自动测试（请勿修改）
+    ├── test_util.h             #   共用断言 + 公开接口 static_assert
+    ├── m1_basics.cpp           #   里程碑 M1（必做）
+    ├── m2_value_semantics.cpp  #   里程碑 M2（必做）
+    ├── m3_move.cpp             #   里程碑 M3（进阶）
+    ├── m4_edge_cases.cpp       #   里程碑 M4（进阶）
+    └── stream_tests.cpp        #   流操作 bonus 测试（选做）
 ```
 
 ## 3. 功能要求
@@ -42,7 +65,7 @@ assignment2-string/
 ### 3.1 构造、析构与赋值（Rule of Five）
 
 ```cpp
-String();                                     // 空字符串，设置一个合理的初始容量（例如 16）
+String();                                     // 空字符串，容量不低于 16
 String(const char* str);                      // C 字符串构造；nullptr 视为空串，不允许 UB
 String(const String& other);                  // 拷贝构造（深拷贝）
 String(String&& other) noexcept;              // 移动构造（窃取缓冲区）
@@ -52,6 +75,8 @@ String& operator=(String&& other) noexcept;   // 移动赋值
 ```
 
 - 拷贝构造与复制赋值必须**深拷贝**：两个对象不共享任何缓冲区；
+- 默认构造的空串必须满足 `capacity() >= 16`（不含结尾 `'\0'`），测试会检查这一点；
+  其余分配（如 `String(const char*)`、扩容）只需满足 `capacity() >= size()`；
 - 移动构造与移动赋值必须为 `noexcept`，可以“窃取”资源，但被移动对象必须保持
   “有效但内容未指定”的状态（见 4.2）；
 - `noexcept` 是函数签名的一部分：声明里写了，`.cpp` 的定义里必须原样写，
@@ -146,7 +171,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 
 | 成员 | 说明 |
 | --- | --- |
-| `String()` | 空串，容量合理（建议 ≥ 16） |
+| `String()` | 空串，容量 ≥ 16（必做契约） |
 | `String(const char*)` | 由 C 字符串构造，`nullptr` 视为空串 |
 | 拷贝 / 移动构造、拷贝 / 移动赋值 | Rule of Five，深拷贝 / 窃取 |
 | `operator+` | 拼接，返回新对象 |
@@ -196,18 +221,30 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
   自己写循环完成对应功能——这是本作业的训练目标之一。使用它们不算违规，
   但你必须说得清其语义与和手写实现的关系；
 - 不得修改 `tests/` 下的测试文件；不得改动 `include/my_string.h` 中公开接口的
-  函数名、参数、返回类型、`const` / `noexcept` 与异常语义。
+  函数名、参数、返回类型、`const` / `noexcept` 与异常语义——这条由测试文件里的
+  `static_assert`（见 `tests/test_util.h`）在编译期强制，改了签名会直接编译失败。
 
 ## 5. 测试与验收
 
-仓库已自带自动测试（`tests/string_tests.cpp`，当前版本 **401 项检查**），
+仓库已自带自动测试，按里程碑拆成 4 个程序（+ 1 个 bonus 程序），
 它是你自测和验收的主要依据：
+
+| 测试程序 | 检查项数 | 分级与覆盖 |
+| --- | --- | --- |
+| `m1_basics` | 242 | 必做：基础接口与不变量 |
+| `m2_value_semantics` | 79 | 必做：值语义、拼接与插入 |
+| `m3_move` | 20 | 进阶：移动语义与 `noexcept` |
+| `m4_edge_cases` | 76 | 进阶：自操作与容量边界 |
+| `bonus_stream` | 11 | 选做：流运算符（默认不构建） |
 
 ```bash
 # 默认构建（已开启 AddressSanitizer + UndefinedBehaviorSanitizer）+ 测试
 cmake -S . -B build
 cmake --build build -j
 ctest --test-dir build --output-on-failure
+
+# 只跑某个里程碑（定位更快）
+ctest --test-dir build -R m1_basics --output-on-failure
 
 # 如需不带 sanitizer 的普通构建
 cmake -S . -B build-plain -DENABLE_SANITIZERS=OFF
@@ -219,23 +256,45 @@ sanitizer 默认开启：配置阶段会探测编译器是否支持，支持才�
 不支持（或使用 MSVC）则直接报错，可用 `-DENABLE_SANITIZERS=OFF` 关闭
 （但关闭后不满足本作业的内存检查要求）。
 
-选做的流操作单独提供了一份测试（`tests/stream_tests.cpp`，11 项检查），
-需要用选项开启才会构建与运行（默认关闭，不影响上面的基线测试）：
+每个里程碑是独立程序：只实现了 M1 时，`m1_basics` 就能链接并通过，
+它的链接错误（`undefined reference to ...`）就是 M1 的待实现清单。
+
+选做的流操作单独提供了一份测试（`tests/stream_tests.cpp`），
+需要用选项开启才会构建与运行（默认关闭，不影响 m1~m4）：
 
 ```bash
 cmake -S . -B build -DENABLE_BONUS_TESTS=ON
 cmake --build build -j
-ctest --test-dir build --output-on-failure   # 会同时运行基线与 bonus 测试
+ctest --test-dir build --output-on-failure   # 会同时运行 m1~m4 与 bonus_stream
 ```
 
 **不强制要求自行编写测试**，能通过随附测试、并理解其中的边界语义即可；
 非常鼓励你在完成前补充自己的边界用例（例如放到自己的临时文件中，不要修改
-`tests/string_tests.cpp`）。评分不会只看“测试是否变绿”，还会关注实现是否真正满足
+`tests/` 下的任何文件）。评分不会只看“测试是否变绿”，还会关注实现是否真正满足
 上述语义与内存安全要求，请勿针对测试输出硬编码。
 
 `docs/build-and-test.md` 中给出了更详细的构建说明、单测失败定位方法、
 sanitizer 报告解读与常见问题排查；异常、异常安全、移动语义、`noexcept`
 以及关键函数的实现骨架见 [`docs/guide.md`](docs/guide.md)。
+
+### 5.1 预计工作量与评分构成
+
+预计工作量：必做（M1 + M2）约 6~10 小时；进阶（M3 + M4）再加 5~8 小时；
+bonus 视熟练程度 1~3 小时。建议按 M1 → M2 → M3 → M4 的顺序提交进度。
+
+| 项目 | 权重 | 说明 |
+| --- | --- | --- |
+| M1 基础接口与不变量 | 20 | 构造/析构、`size`/`capacity`、`[]`/`at`/`c_str`、`push_back` |
+| M2 值语义与插入 | 25 | 拷贝构造/复制赋值、`operator+`、`insert`（含越界异常） |
+| M3 移动语义 | 15 | 移动构造/移动赋值、`noexcept`、被移动后对象的有效性 |
+| M4 边界与自操作 | 15 | 自赋值/自移动/自插入/自交换、容量边界 |
+| 内存安全与强异常安全 | 15 | ASan/UBSan 零报告；“先分配成功、再释放旧的”；无泄漏/双重释放 |
+| 构建与代码质量 | 10 | 无警告、命名与注释清晰、未用 STL 容器替代 |
+| **必做 + 进阶合计** | **100** | |
+| bonus 流运算符 | +10 | 额外加分项，`bonus_stream` 全过 |
+
+权重可由任课教师按教学需要调整。强异常安全中“`bad_alloc` 时原对象不变”一项
+无法在测试里稳定复现，主要靠代码审查与本表最后一行的权重体现。
 
 ## 6. Bonus（选做）：流运算符 `<<` / `>>`
 

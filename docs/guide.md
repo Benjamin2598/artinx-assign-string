@@ -271,7 +271,7 @@ private:
 
 ```cpp
 namespace {
-constexpr std::size_t kMinCapacity = 16;  // 初始容量，可自定
+constexpr std::size_t kMinCapacity = 16;  // 容量契约：默认构造的空串容量 >= 16
 
 std::size_t raw_length(const char* s) noexcept { /* 数到 '\0' 为止 */ }
 
@@ -550,30 +550,35 @@ std::istream& operator>>(std::istream& is, String& str) {
 }
 ```
 
-编写后可用 `-DENABLE_BONUS_TESTS=ON` 构建 `string_bonus_tests` 验证（见
+编写后可用 `-DENABLE_BONUS_TESTS=ON` 构建 `bonus_stream` 验证（见
 [`build-and-test.md`](build-and-test.md) 与 `../TASKS.md` 第 6 节）。
 
 ---
 
 ## 11. 推荐实现顺序与常见错误
 
-### 11.1 按这个顺序写，每步都能看到测试变绿
+### 11.1 按里程碑的顺序写，每步都能看到测试变绿
 
-1. 补私有成员 + 工具函数（第 6 节）；
-2. 默认构造、`const char*` 构造、析构、`size/capacity/operator[]/c_str`（第 7 节）
-   → 构造、下标、容量相关用例开始通过；
-3. 拷贝构造、复制赋值（8.1、8.2）→ 深拷贝与自赋值用例通过；
-4. 移动构造、移动赋值（8.3、8.4）→ 移动语义用例通过；
-5. `ensure_capacity`、`operator+`、`push_back`、`swap`（9.1、9.2、9.4）；
-6. `insert`（9.3）→ 最后是自插入与容量边界测试；
-7. `at()` 的越界抛异常（7.3）；
-8. （选做）流运算符（第 10 节）。
+测试按里程碑拆成 4 个独立程序（见 `../TASKS.md` 第 1.1 节），
+推荐按同样的顺序实现——每个里程碑变绿后再往下做：
+
+1. **M1（必做）**：补私有成员 + 工具函数（第 6 节）→ 默认构造、`const char*` 构造、
+   析构、`size`/`capacity`/`operator[]`/`c_str`（第 7 节）→ `at()` 越界抛异常（7.3）
+   → `push_back`（9.4）→ `./build/m1_basics` 变绿；
+2. **M2（必做）**：拷贝构造、复制赋值（8.1、8.2）→ `operator+`、`insert`
+   （9.1~9.3）→ `./build/m2_value_semantics` 变绿；
+3. **M3（进阶）**：移动构造、移动赋值（8.3、8.4）→ `./build/m3_move` 变绿；
+4. **M4（进阶）**：自插入、自交换、容量边界——重叠复制最容易在这一步出错
+   （9.3）→ `./build/m4_edge_cases` 变绿；
+5. （选做）流运算符（第 10 节）：开启 `-DENABLE_BONUS_TESTS=ON` 后
+   `./build/bonus_stream` 变绿。
 
 每完成一步：
 
 ```bash
-cmake --build build -j
-ctest --test-dir build --output-on-failure
+cmake --build build -j                                   # 构建全部
+ctest --test-dir build -R m1_basics --output-on-failure  # 只跑一个里程碑
+ctest --test-dir build --output-on-failure               # 跑全部
 ```
 
 ### 11.2 常见错误对照表
@@ -590,7 +595,7 @@ ctest --test-dir build --output-on-failure
 
 ### 11.3 自检清单
 
-- [ ] `ctest` 基线测试 401 项全过，且构建无警告；
+- [ ] `ctest` 四个里程碑全过（m1 242 / m2 79 / m3 20 / m4 76 项），且构建无警告；
 - [ ] ASan/UBSan 构建同样全过（默认开启，见 `build-and-test.md`）；
 - [ ] 自己额外验证过：空串、长串、多次扩容、自赋值、自移动、自插入、自交换；
 - [ ] `insert` 的"容量恰好够 / 恰好差 1"两个边界都试过；
