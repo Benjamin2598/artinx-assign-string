@@ -17,9 +17,9 @@
 
 ### 1.1 里程碑与分级
 
-测试按难度拆成 4 个里程碑，**每个里程碑一个独立的测试程序**，只引用「本里程碑及
+测试按难度拆成 5 个里程碑，**每个里程碑一个独立的测试程序**，只引用「本里程碑及
 更早里程碑」的函数。因此只实现 M1 时 `m1_basics` 也能链接并通过，它的链接错误就是
-M1 的待实现清单；然后再按 M2 → M3 → M4 依次往下做。
+M1 的待实现清单；然后再按 M2 → M3 → M4 依次往下做（M5 只依赖 M1 + M2，可以更早开始）。
 
 | 里程碑 | 内容 | 测试程序 | 分级 |
 | --- | --- | --- | --- |
@@ -27,10 +27,14 @@ M1 的待实现清单；然后再按 M2 → M3 → M4 依次往下做。
 | M2 | 值语义：拷贝构造 / 复制赋值 / 自赋值 / `operator+` / `insert`（含越界异常） | `tests/m2_value_semantics.cpp` | **必做** |
 | M3 | 移动语义：移动构造 / 移动赋值、`noexcept`、被移动后对象的有效性 | `tests/m3_move.cpp` | 进阶 |
 | M4 | 边界与自操作：自插入、自交换、容量边界、空串自操作、深拷贝压力测试 | `tests/m4_edge_cases.cpp` | 进阶 |
+| M5 | 强异常安全：注入 `std::bad_alloc`，验证失败时原对象不变、不泄漏 | `tests/m5_strong_safety.cpp` | 进阶（M2 之后即可做） |
 | bonus | 流运算符 `<<` / `>>` | `tests/stream_tests.cpp` | 选做 |
 
 > 提示：里程碑只保证「测试程序本身」不依赖更高的里程碑；如果你的实现内部用到了
 > 移动操作（例如 `insert` 里用 `std::move`），那就需要把对应函数也实现出来。
+>
+> M5 通过替换全局 `operator new[]` 注入 `std::bad_alloc`，因此它假定你用
+> `new char[]` 分配缓冲区（本作业的推荐做法，见 4.4）；用 `malloc` 等方式分配时它注入不到。
 
 仓库中 `include/my_string.h` 已给出必须实现的公开接口，`src/my_string.cpp` 是空的；
 你的工作就是补全私有数据成员并实现全部成员函数与运算符。
@@ -57,6 +61,7 @@ assignment2-string/
     ├── m2_value_semantics.cpp  #   里程碑 M2（必做）
     ├── m3_move.cpp             #   里程碑 M3（进阶）
     ├── m4_edge_cases.cpp       #   里程碑 M4（进阶）
+    ├── m5_strong_safety.cpp    #   里程碑 M5：强异常安全（进阶）
     └── stream_tests.cpp        #   流操作 bonus 测试（选做）
 ```
 
@@ -95,8 +100,12 @@ char& at(std::size_t index);                  // 带边界检查
 const char& at(std::size_t index) const;      // 越界抛出 std::out_of_range
 ```
 
-`operator[]` 与 `std::string` 一致，不做边界检查，测试不会传入越界位置；
-带检查的访问请使用 `at()`。
+`operator[]` 与 `std::string` 一致，**不做边界检查**，具体语义是：
+
+- `index == size()` 是合法读取，返回结尾 `'\0'` 的引用（即 `s[size()] == '\0'`，
+  测试会检查这一点）；不要写入 `s[size()]`，那会破坏“以 `'\0'` 结尾”的不变量；
+- `index > size()` 是未定义行为，不得依赖；
+- 需要带检查的访问请用 `at()`（`index >= size()` 抛出 `std::out_of_range`）。
 
 #### 异常最小知识（本作业唯一需要主动抛异常的地方）
 
@@ -175,7 +184,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 | `String(const char*)` | 由 C 字符串构造，`nullptr` 视为空串 |
 | 拷贝 / 移动构造、拷贝 / 移动赋值 | Rule of Five，深拷贝 / 窃取 |
 | `operator+` | 拼接，返回新对象 |
-| `operator[]` | 无边界检查（与 `std::string` 一致） |
+| `operator[]` | 无边界检查（与 `std::string` 一致；`index == size()` 可读结尾 `'\0'`） |
 | `at()` | 有边界检查，越界抛 `std::out_of_range` |
 | `size()` / `capacity()` | 长度 / 容量（容量不含 `'\0'`） |
 | `insert(pos, str)` | 插入，`pos > size()` 抛异常，自插入安全 |
@@ -195,6 +204,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
   这里的“强异常安全”指：操作要么成功，要么对象与操作前完全一样，不能出现
   “旧缓冲区已释放、新缓冲区又没分配成功”的悬空状态；实现口诀是
   “先分配成功、再释放旧的”，详见 [`docs/guide.md`](docs/guide.md)。
+  `m5_strong_safety` 会用注入的 `std::bad_alloc` 真实检查这一点（见 5 节）。
 
 ### 4.2 被移动后的对象
 
@@ -226,7 +236,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 
 ## 5. 测试与验收
 
-仓库已自带自动测试，按里程碑拆成 4 个程序（+ 1 个 bonus 程序），
+仓库已自带自动测试，按里程碑拆成 5 个程序（+ 1 个 bonus 程序），
 它是你自测和验收的主要依据：
 
 | 测试程序 | 检查项数 | 分级与覆盖 |
@@ -235,6 +245,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 | `m2_value_semantics` | 79 | 必做：值语义、拼接与插入 |
 | `m3_move` | 20 | 进阶：移动语义与 `noexcept` |
 | `m4_edge_cases` | 76 | 进阶：自操作与容量边界 |
+| `m5_strong_safety` | 56 | 进阶：强异常安全（注入 `std::bad_alloc`） |
 | `bonus_stream` | 11 | 选做：流运算符（默认不构建） |
 
 ```bash
@@ -260,12 +271,12 @@ sanitizer 默认开启：配置阶段会探测编译器是否支持，支持才�
 它的链接错误（`undefined reference to ...`）就是 M1 的待实现清单。
 
 选做的流操作单独提供了一份测试（`tests/stream_tests.cpp`），
-需要用选项开启才会构建与运行（默认关闭，不影响 m1~m4）：
+需要用选项开启才会构建与运行（默认关闭，不影响 m1~m5）：
 
 ```bash
 cmake -S . -B build -DENABLE_BONUS_TESTS=ON
 cmake --build build -j
-ctest --test-dir build --output-on-failure   # 会同时运行 m1~m4 与 bonus_stream
+ctest --test-dir build --output-on-failure   # 会同时运行 m1~m5 与 bonus_stream
 ```
 
 **不强制要求自行编写测试**，能通过随附测试、并理解其中的边界语义即可；
@@ -288,13 +299,13 @@ bonus 视熟练程度 1~3 小时。建议按 M1 → M2 → M3 → M4 的顺序�
 | M2 值语义与插入 | 25 | 拷贝构造/复制赋值、`operator+`、`insert`（含越界异常） |
 | M3 移动语义 | 15 | 移动构造/移动赋值、`noexcept`、被移动后对象的有效性 |
 | M4 边界与自操作 | 15 | 自赋值/自移动/自插入/自交换、容量边界 |
-| 内存安全与强异常安全 | 15 | ASan/UBSan 零报告；“先分配成功、再释放旧的”；无泄漏/双重释放 |
+| 内存安全与强异常安全 | 15 | ASan/UBSan 零报告；“先分配成功、再释放旧的”；无泄漏/双重释放；`m5_strong_safety` 全过 |
 | 构建与代码质量 | 10 | 无警告、命名与注释清晰、未用 STL 容器替代 |
 | **必做 + 进阶合计** | **100** | |
 | bonus 流运算符 | +10 | 额外加分项，`bonus_stream` 全过 |
 
-权重可由任课教师按教学需要调整。强异常安全中“`bad_alloc` 时原对象不变”一项
-无法在测试里稳定复现，主要靠代码审查与本表最后一行的权重体现。
+权重可由任课教师按教学需要调整。“`bad_alloc` 时原对象保持不变”现在由
+`m5_strong_safety` 真实验证（它注入分配失败），不再只靠代码审查。
 
 ## 6. Bonus（选做）：流运算符 `<<` / `>>`
 

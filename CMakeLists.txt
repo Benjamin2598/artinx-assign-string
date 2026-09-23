@@ -82,7 +82,7 @@ add_library(string_lib STATIC ${STRING_SOURCES})
 target_include_directories(string_lib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 # ---------------------------------------------------------------------------
-# 里程碑测试（M1/M2 必做，M3/M4 进阶）
+# 里程碑测试（M1/M2 必做，M3/M4/M5 进阶）
 #
 # 每个里程碑一个独立的可执行文件。测试只引用"本里程碑及更早里程碑"的函数，
 # 所以只实现了 M1 时，m1_basics 也能链接并运行——先看到 M1 变绿，再往下做。
@@ -96,6 +96,7 @@ set(MILESTONE_TESTS
   m2_value_semantics
   m3_move
   m4_edge_cases
+  m5_strong_safety
 )
 
 foreach(test_name IN LISTS MILESTONE_TESTS)

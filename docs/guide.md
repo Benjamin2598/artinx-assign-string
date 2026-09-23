@@ -123,8 +123,9 @@ data_ = new char[target + 1];         // 如果这里抛出 bad_alloc……
   成功后再 `swap`；
 - **自赋值、自插入、自交换**：保证源数据在被覆盖之前不会被销毁。
 
-> 随附测试不会模拟"内存不足"（很难稳定复现），所以强异常安全主要靠写法和代码审查；
-> 但把上面两条规则写反，很容易造成真实的内存泄漏或悬空指针，**ASan 会直接报出来**。
+> 随附的 `m5_strong_safety` 会替换全局 `new[]`，在指定的分配次数上抛
+> `std::bad_alloc`，真实检查这一点（前提是你用 `new char[]` 分配）；
+> 把上面两条规则写反，很容易造成真实的内存泄漏或悬空指针，**ASan 也会直接报出来**。
 
 ---
 
@@ -221,8 +222,10 @@ note: from previous declaration 'String(String&&) noexcept'
 ## 5. 常见困惑
 
 **Q：`at()` 和 `operator[]` 有什么区别？**
-`operator[]` 与 `std::string` 一致，不做检查，越界是未定义行为；`at()` 做检查，
-越界抛 `std::out_of_range`。这就是为什么 `at()` 不能是 `noexcept`。
+`operator[]` 与 `std::string` 一致，不做检查，但 `index == size()` 是合法的：
+返回结尾 `'\0'` 的引用（`s[size()] == '\0'`，可以直接读）；`index > size()` 才是
+未定义行为，另外不要写 `s[size()]`。`at()` 做检查，`index >= size()`
+抛 `std::out_of_range`——这就是为什么 `at()` 不能是 `noexcept`。
 
 **Q：我能在 `noexcept` 函数里 `throw` 吗？**
 能编译，但异常逃出去程序会立即 `terminate`，等于制造崩溃。移动构造 / 移动赋值里
@@ -567,10 +570,12 @@ std::istream& operator>>(std::istream& is, String& str) {
    → `push_back`（9.4）→ `./build/m1_basics` 变绿；
 2. **M2（必做）**：拷贝构造、复制赋值（8.1、8.2）→ `operator+`、`insert`
    （9.1~9.3）→ `./build/m2_value_semantics` 变绿；
-3. **M3（进阶）**：移动构造、移动赋值（8.3、8.4）→ `./build/m3_move` 变绿；
-4. **M4（进阶）**：自插入、自交换、容量边界——重叠复制最容易在这一步出错
+3. **M5（进阶）**：强异常安全——用注入的 `bad_alloc` 验证“先分配成功、再释放旧的”
+   （2 节、9.1）→ `./build/m5_strong_safety` 变绿（它只依赖 M1 + M2，可以现在做）；
+4. **M3（进阶）**：移动构造、移动赋值（8.3、8.4）→ `./build/m3_move` 变绿；
+5. **M4（进阶）**：自插入、自交换、容量边界——重叠复制最容易在这一步出错
    （9.3）→ `./build/m4_edge_cases` 变绿；
-5. （选做）流运算符（第 10 节）：开启 `-DENABLE_BONUS_TESTS=ON` 后
+6. （选做）流运算符（第 10 节）：开启 `-DENABLE_BONUS_TESTS=ON` 后
    `./build/bonus_stream` 变绿。
 
 每完成一步：
@@ -595,7 +600,7 @@ ctest --test-dir build --output-on-failure               # 跑全部
 
 ### 11.3 自检清单
 
-- [ ] `ctest` 四个里程碑全过（m1 242 / m2 79 / m3 20 / m4 76 项），且构建无警告；
+- [ ] `ctest` 五个里程碑全过（m1 242 / m2 79 / m3 20 / m4 76 / m5 56 项），且构建无警告；
 - [ ] ASan/UBSan 构建同样全过（默认开启，见 `build-and-test.md`）；
 - [ ] 自己额外验证过：空串、长串、多次扩容、自赋值、自移动、自插入、自交换；
 - [ ] `insert` 的"容量恰好够 / 恰好差 1"两个边界都试过；

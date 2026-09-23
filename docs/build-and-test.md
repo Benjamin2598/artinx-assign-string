@@ -98,7 +98,8 @@ collect2: error: ld returned 1 exit status
 
 - `m1_basics` 的链接错误就是 **M1 的待实现清单**；把 M1 实现完，`m1_basics`
   就能链接并通过；
-- 然后看 `m2_value_semantics` 缺哪些函数，依此类推（M3 → M4）。
+- 然后看 `m2_value_semantics` 缺哪些函数，依此类推（M3 → M4）；
+- `m5_strong_safety` 只依赖 M1 + M2，想提前验证强异常安全的话可以在 M2 之后就跑它。
 
 每次改完代码，重新执行 `cmake --build build -j` 即可；也可以只构建某一个目标，
 例如 `cmake --build build --target m1_basics`。
@@ -170,9 +171,29 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-开启后会多出一个可执行文件 `bonus_stream`，CTest 会同时运行 m1~m4 与
+开启后会多出一个可执行文件 `bonus_stream`，CTest 会同时运行 m1~m5 与
 bonus_stream。命令上也已写在 `../TASKS.md` 第 6 节；实现思路见
 [`guide.md`](guide.md) 第 10 节。
+
+### 2.7 强异常安全测试（m5_strong_safety）
+
+`m5_strong_safety` 验证 TASKS.md 4.1 的强异常安全要求。它在测试程序里替换了
+全局 `operator new[]` / `delete[]`，在指定的第 k 次数组分配时抛出 `std::bad_alloc`，
+然后检查：
+
+- 操作要么完整成功，要么对象的内容 / 长度 / 容量完全不变
+  （`push_back`、`insert`、复制赋值、`operator+`、构造失败路径）；
+- 失败路径不泄漏内存（用分配/释放计数平衡判断，ASan 的 LeakSanitizer 也会兜底）；
+- 失败之后对象仍然可以正常使用。
+
+它只替换 `new[]`，不影响 `iostream` 等内部使用的标量 `new`；在 ASan/UBSan 构建与
+普通构建下都能运行。**前提是实现用 `new char[]` 分配缓冲区**：若改用
+`malloc` / `std::allocator`，本测试注入不到（作业要求用 `new[]` / `delete[]`，
+见 `../TASKS.md` 4.4）。
+
+```bash
+ctest --test-dir build -R m5_strong_safety --output-on-failure
+```
 
 ---
 
@@ -344,11 +365,12 @@ ASan/UBSan 默认开启，因此配置阶段会做真实探测，不支持就会
 ## 5. 完成前自检清单
 
 - [ ] 默认（ASan + UBSan）构建：`cmake --build build -j` 无警告通过；
-- [ ] `ctest --test-dir build --output-on-failure` 四个里程碑全部 Passed，
+- [ ] `ctest --test-dir build --output-on-failure` 五个里程碑全部 Passed，
       每个测试程序单独运行时最后输出 `ALL TESTS PASSED`
-      （m1 242 项 / m2 79 项 / m3 20 项 / m4 76 项检查）；
+      （m1 242 项 / m2 79 项 / m3 20 项 / m4 76 项 / m5 56 项检查）；
 - [ ] `-DENABLE_SANITIZERS=OFF` 的普通构建同样全部通过、无警告；
 - [ ] sanitizer 构建下无 ASan/UBSan 报错；
+- [ ] `m5_strong_safety` 全过：注入 `std::bad_alloc` 时原对象内容 / 容量不变、不泄漏；
 - [ ] （选做）`-DENABLE_BONUS_TESTS=ON` 后 `bonus_stream`（11 项）也全过；
 - [ ] 空串（默认构造容量 ≥ 16）、长串、多次扩容、自赋值、自移动、自插入、
       自交换、非法位置异常都想过一遍；

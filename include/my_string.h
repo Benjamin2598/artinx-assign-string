@@ -39,6 +39,7 @@ public:
     String operator+(const String& other) const;
 
     // ---- 下标访问：与 std::string::operator[] 一样不做边界检查 ----
+    // index == size() 合法（返回结尾 '\0' 的引用）；index > size() 是未定义行为。
     char& operator[](std::size_t index) noexcept;
     const char& operator[](std::size_t index) const noexcept;
 

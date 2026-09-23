@@ -42,7 +42,7 @@ code --install-extension vadimcn.vscode-lldb
 | --- | --- |
 | 构建 | `Ctrl+Shift+B`（任务 `cmake: build`） |
 | 运行全部测试 | `Ctrl+Shift+P` → `Tasks: Run Task` → `ctest: 运行全部测试` |
-| 只跑一个里程碑 | 任务 `ctest: 只跑一个里程碑`，弹出列表里选 m1~m4 / bonus |
+| 只跑一个里程碑 | 任务 `ctest: 只跑一个里程碑`，弹出列表里选 m1~m5 / bonus |
 | 清理重建 | 任务 `cmake: 清理并重新配置`（需要 bash） |
 | 调试 | `Ctrl+Shift+D` 打开 Run and Debug，选 `调试 M1 · 基础接口 (m1_basics)` 等，按 `F5` |
 

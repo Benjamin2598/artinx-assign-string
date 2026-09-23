@@ -41,6 +41,15 @@
       "preLaunchTask": "cmake: build"
     },
     {
+      "name": "调试 M5 · 强异常安全 (m5_strong_safety)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/m5_strong_safety",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "cmake: build"
+    },
+    {
       "name": "调试 Bonus · 流运算符 (bonus_stream)",
       "type": "lldb",
       "request": "launch",

@@ -18,7 +18,7 @@
 
 ## 里程碑：一步一步变绿
 
-测试按难度拆成 4 个里程碑 + 1 个选做 bonus。**每个里程碑是独立的测试程序**，
+测试按难度拆成 5 个里程碑 + 1 个选做 bonus。**每个里程碑是独立的测试程序**，
 只引用「本里程碑及更早里程碑」的函数——只实现了 M1 时，`m1_basics` 就能链接并通过，
 它的链接错误（`undefined reference to ...`）就是 M1 的待实现清单。
 
@@ -28,12 +28,13 @@
 | M2 | 值语义：拷贝构造 / 复制赋值 / 自赋值 / `operator+` / `insert`（含越界异常） | `tests/m2_value_semantics.cpp` | **必做** |
 | M3 | 移动语义：移动构造 / 移动赋值、`noexcept`、被移动后对象的有效性 | `tests/m3_move.cpp` | 进阶 |
 | M4 | 边界与自操作：自插入、自交换、容量边界、空串自操作、深拷贝压力测试 | `tests/m4_edge_cases.cpp` | 进阶 |
+| M5 | 强异常安全：注入 `std::bad_alloc`，验证失败时原对象不变、不泄漏 | `tests/m5_strong_safety.cpp` | 进阶（M2 之后即可做） |
 | bonus | 流运算符 `<<` / `>>` | `tests/stream_tests.cpp` | 选做 |
 
 公开接口签名（函数名、参数、返回类型、`const` / `noexcept`）由
 `tests/test_util.h` 里的 `static_assert` 在编译期强制检查，不需要人工比对。
 
-预计工作量：只做必做（M1 + M2）约 6~10 小时；做到进阶（M3 + M4）再加 5~8 小时。
+预计工作量：只做必做（M1 + M2）约 6~10 小时；做到进阶（M3 + M4 + M5）再加 5~8 小时。
 评分构成见 [`TASKS.md`](TASKS.md) 第 5 节。
 
 ## 仓库结构
@@ -47,7 +48,7 @@ assignment2-string/
 │   ├── extensions.json         #   推荐的扩展
 │   ├── settings.json           #   clangd 指向 build/compile_commands.json
 │   ├── tasks.json              #   配置 / 构建 / 运行测试
-│   └── launch.json             #   调试 m1~m4 与 bonus
+│   └── launch.json             #   调试 m1~m5 与 bonus
 ├── docs/
 │   ├── build-and-test.md       # 构建 / 测试 / ASan+UBSan 详解与 FAQ
 │   ├── guide.md                # 教学指南：先修概念 + 实现骨架
@@ -62,6 +63,7 @@ assignment2-string/
     ├── m2_value_semantics.cpp  #   里程碑 M2（必做）
     ├── m3_move.cpp             #   里程碑 M3（进阶）
     ├── m4_edge_cases.cpp       #   里程碑 M4（进阶）
+    ├── m5_strong_safety.cpp    #   里程碑 M5：强异常安全（进阶）
     └── stream_tests.cpp        #   流运算符 bonus（选做）
 ```
 
@@ -124,7 +126,7 @@ ctest --test-dir build -R m1_basics --output-on-failure
 ```bash
 cmake -S . -B build -DENABLE_BONUS_TESTS=ON
 cmake --build build -j
-ctest --test-dir build --output-on-failure   # m1~m4 与 bonus_stream 一起运行
+ctest --test-dir build --output-on-failure   # m1~m5 与 bonus_stream 一起运行
 ```
 
 ### 内存检查（ASan + UBSan）
@@ -150,7 +152,7 @@ ctest --test-dir build-asan --output-on-failure
 ## 验收标准
 
 1. **必做**：`m1_basics`、`m2_value_semantics` 全部通过；
-   **进阶**：`m3_move`、`m4_edge_cases` 全部通过。
+   **进阶**：`m3_move`、`m4_edge_cases`、`m5_strong_safety` 全部通过。
    以上在默认的 ASan/UBSan 构建与 `-DENABLE_SANITIZERS=OFF` 的普通构建下都要通过；
    （选做）开启 `-DENABLE_BONUS_TESTS=ON` 后，`bonus_stream` 也全部通过；
 2. 无编译警告（工程统一开启 `-Wall -Wextra -Wpedantic`）；

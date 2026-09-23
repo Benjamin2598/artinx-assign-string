@@ -74,6 +74,7 @@
         "^m2_value_semantics$",
         "^m3_move$",
         "^m4_edge_cases$",
+        "^m5_strong_safety$",
         "^bonus_stream$"
       ],
       "default": "^m1_basics$"
