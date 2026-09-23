@@ -50,7 +50,8 @@ CMake 会自动选择系统默认编译器；想换编译器时在配置阶段�
 `-DCMAKE_CXX_COMPILER=clang++`（或 `g++`）即可。
 
 > 对异常、`noexcept` 或移动语义不熟悉时，先看
-> [`exceptions-and-moves.md`](exceptions-and-moves.md)，里面解释了本作业会用到的全部相关语法。
+> [`guide.md`](guide.md)，里面解释了本作业会用到的全部相关语法，
+> 并给出关键函数的实现骨架。
 
 ---
 
@@ -104,7 +105,7 @@ ctest --test-dir build --output-on-failure
 tests/string_tests.cpp:372: CHECK failed: c_str(s) == expected (actual="aXYbcd", expected="abXYcd")
 [   FAILED ] insert_basic
 
-checks: 412, failures: 1
+checks: 401, failures: 1
 TESTS FAILED
 ```
 
@@ -128,6 +129,21 @@ rm -rf build && cmake -S . -B build && cmake --build build -j
 
 测试程序在 `main()` 中按顺序调用 `run("名字", 函数)`。调试时可以临时把不需要的
 `run(...)` 行注释掉，只保留目标用例，最后**完成后务必还原** `tests/string_tests.cpp`。
+
+### 2.6 选做（bonus）：流运算符测试
+
+流运算符 `<<` / `>>` 是选做内容，测试单独放在 `tests/stream_tests.cpp`，
+**默认不构建也不注册**（所以没做 bonus 时，上面的基线测试依然全绿）：
+
+```bash
+cmake -S . -B build -DENABLE_BONUS_TESTS=ON
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
+
+开启后会多出一个可执行文件 `string_bonus_tests`，CTest 会同时运行基线与
+bonus 两个测试（基线 401 项 + bonus 11 项）。命令上也已写在
+`../TASKS.md` 第 6 节；实现思路见 [`guide.md`](guide.md) 第 10 节。
 
 ---
 
@@ -288,17 +304,21 @@ ASan/UBSan 默认开启，因此配置阶段会做真实探测，不支持就会
 **Q9. 编译报 `has a different exception specifier`？**
 说明该函数的声明里有 `noexcept`，但 `.cpp` 的定义里漏写了。把 `noexcept`
 原样补上即可（移动构造、移动赋值、`operator[]`、`size`、`capacity`、`c_str`、
-转换、`swap` 都带 `noexcept`）。详见
-[`exceptions-and-moves.md`](exceptions-and-moves.md) 第 4 节。
+转换、`swap` 都带 `noexcept`）。详见 [`guide.md`](guide.md) 第 4 节。
+
+**Q10. 为什么 ctest 没有跑流运算符（`<<` / `>>`）的测试？**
+流操作是选做 bonus，默认不构建。需要加 `-DENABLE_BONUS_TESTS=ON` 配置，
+构建后会多出 `string_bonus_tests` 并自动注册到 CTest（见 2.6 节）。
 
 ---
 
 ## 5. 完成前自检清单
 
 - [ ] 默认（ASan + UBSan）构建：`cmake --build build -j` 无警告通过；
-- [ ] `ctest --test-dir build --output-on-failure` 输出 `ALL TESTS PASSED`（412 项检查）；
+- [ ] `ctest --test-dir build --output-on-failure` 输出 `ALL TESTS PASSED`（基线 401 项检查）；
 - [ ] `-DENABLE_SANITIZERS=OFF` 的普通构建同样全部通过、无警告；
 - [ ] sanitizer 构建下无 ASan/UBSan 报错；
+- [ ] （选做）`-DENABLE_BONUS_TESTS=ON` 后 bonus 流测试 11 项也全过；
 - [ ] 空串、长串、多次扩容、自赋值、自移动、自插入、自交换、非法位置异常都想过一遍；
 - [ ] 没有使用 `std::string` / `std::string_view` / 任何 STL 容器；
 - [ ] 没有修改 `tests/` 与公开接口签名；

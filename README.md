@@ -8,13 +8,13 @@
 
 - 动态内存管理（`new[]` / `delete[]`）与 RAII；
 - Rule of Five：拷贝/移动构造、拷贝/移动赋值、析构；
-- 运算符重载：`+`、`[]`、`<<`、`>>` 与 `const char*` 转换；
+- 运算符重载：`+`、`[]` 与 `const char*` 转换（流运算符 `<<` / `>>` 为选做 bonus）；
 - 深拷贝值语义，以及自赋值、自移动、自插入、自交换等边界情况；
 - 强异常安全（分配失败时原对象不被破坏）与内存安全（ASan/UBSan 零报告）。
 
 > 没学过异常或 `noexcept` 也不影响开始：本作业只用到很少一点。
-> 建议先花 10 分钟浏览 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)
-> （异常、异常安全、移动语义、`noexcept` 的先修知识，含新手常见报错）。
+> 建议先花 10 分钟浏览 [`docs/guide.md`](docs/guide.md)
+> （先修概念 + 关键函数的实现骨架，含新手常见报错）。
 
 ## 仓库结构
 
@@ -25,13 +25,14 @@ assignment2-string/
 ├── TASKS.md                    # 作业要求（接口、语义、约束）
 ├── docs/
 │   ├── build-and-test.md       # 构建 / 测试 / ASan+UBSan 详解与 FAQ
-│   └── exceptions-and-moves.md # 先修知识：异常、异常安全、移动语义、noexcept
+│   └── guide.md                # 教学指南：先修概念 + 实现骨架
 ├── include/
 │   └── my_string.h             # String 的公开接口（需要你补私有数据成员）
 ├── src/
 │   └── my_string.cpp           # 实现文件（目前为空，需要你填写）
 └── tests/
-    └── string_tests.cpp        # 随附自动测试（请勿修改）
+    ├── string_tests.cpp        # 基线自动测试（必做，请勿修改）
+    └── stream_tests.cpp        # 流运算符 bonus 测试（选做，请勿修改）
 ```
 
 ## 环境要求
@@ -67,12 +68,23 @@ ctest --test-dir build --output-on-failure
 >
 > **刚开始构建失败是预期的**：`src/my_string.cpp` 目前为空，链接阶段会报
 > `undefined reference to 'String::...'`。按 [`TASKS.md`](TASKS.md) 完成实现后，
-> 构建与测试即可通过。测试程序共 412 项检查，全部通过时最后输出 `ALL TESTS PASSED`。
+> 构建与测试即可通过。基线测试共 401 项检查，全部通过时最后输出 `ALL TESTS PASSED`。
 
 也可以直接运行测试程序（不经过 CTest），输出与退出码相同：
 
 ```bash
 ./build/string_tests
+```
+
+### 选做：流运算符测试（bonus）
+
+流运算符 `<<` / `>>` 是选做内容，测试单独放在 `tests/stream_tests.cpp`，
+默认不构建（所以不做 bonus 也能全绿）：
+
+```bash
+cmake -S . -B build -DENABLE_BONUS_TESTS=ON
+cmake --build build -j
+ctest --test-dir build --output-on-failure   # 基线与 bonus 一起运行（401 + 11 项）
 ```
 
 ### 内存检查（ASan + UBSan）
@@ -97,8 +109,10 @@ ctest --test-dir build-asan --output-on-failure
 
 ## 验收标准
 
-1. `tests/string_tests.cpp` 在默认的 ASan/UBSan 构建与 `-DENABLE_SANITIZERS=OFF`
-   的普通构建下均全部通过；
+1. `tests/string_tests.cpp`（401 项）在默认的 ASan/UBSan 构建与
+   `-DENABLE_SANITIZERS=OFF` 的普通构建下均全部通过；
+   （选做）开启 `-DENABLE_BONUS_TESTS=ON` 后，`tests/stream_tests.cpp`（11 项）
+   也全部通过；
 2. 无编译警告（工程统一开启 `-Wall -Wextra -Wpedantic`）；
 3. 未使用 `std::string`、`std::string_view` 或任何 STL 容器；
 4. 边界情况正确：空串、长串、多次扩容、自赋值、自移动、自插入、自交换，

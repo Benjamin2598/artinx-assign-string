@@ -83,3 +83,23 @@ target_link_libraries(string_tests PRIVATE string_lib)
 if(BUILD_TESTING)
   add_test(NAME string_tests COMMAND string_tests)
 endif()
+
+# ---------------------------------------------------------------------------
+# 选做（bonus）：流运算符 << / >> 的测试
+#
+#   cmake -S . -B build -DENABLE_BONUS_TESTS=ON
+#   cmake --build build -j
+#   ctest --test-dir build --output-on-failure
+#
+# 默认不构建：未实现流操作时，基线测试（string_tests）仍能正常构建与通过。
+# ---------------------------------------------------------------------------
+option(ENABLE_BONUS_TESTS "Build the optional stream-operator tests" OFF)
+
+if(ENABLE_BONUS_TESTS)
+  add_executable(string_bonus_tests tests/stream_tests.cpp)
+  target_link_libraries(string_bonus_tests PRIVATE string_lib)
+
+  if(BUILD_TESTING)
+    add_test(NAME string_bonus_tests COMMAND string_bonus_tests)
+  endif()
+endif()

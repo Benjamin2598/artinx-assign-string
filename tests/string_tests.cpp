@@ -3,14 +3,14 @@
 // 说明：
 //   * 测试不依赖交互输入，失败时以非零退出码结束（供 CTest 使用）；
 //   * 轻量断言宏在 -DNDEBUG 下依然生效；
-//   * 测试同样不使用 std::string 及其运算，<sstream> 仅用于验证 << / >>；
+//   * 测试同样不使用 std::string 及其运算（流操作（bonus）的测试见
+//     tests/stream_tests.cpp）；
 //   * 不规定初始容量的具体数值（只要求"合理"），断言仅依赖与数值无关的语义。
 
 #include "my_string.h"
 
 #include <cstddef>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -641,60 +641,6 @@ void test_deep_copy_independence_stress() {
     CHECK_INVARIANTS(a);
 }
 
-// ---------------------------------------------------------------------------
-// 流操作与类型转换
-// ---------------------------------------------------------------------------
-
-void test_stream_output() {
-    std::ostringstream os;
-    os << String("hello") << ',' << String() << ',' << String("world");
-    CHECK(equals_chars(os.str().c_str(), "hello,,world"));
-
-    std::ostringstream os2;
-    const String s("const output");
-    os2 << s;
-    CHECK(equals_chars(os2.str().c_str(), "const output"));
-}
-
-void test_stream_input() {
-    std::istringstream input("hello world");
-    String a;
-    String b;
-    input >> a >> b;
-    CHECK_CSTR(a, "hello");
-    CHECK_CSTR(b, "world");
-
-    // 连续读取会替换旧内容
-    std::istringstream input2("first second");
-    String x("old content");
-    input2 >> x;
-    CHECK_CSTR(x, "first");
-    input2 >> x;
-    CHECK_CSTR(x, "second");
-
-    // 前导空白被跳过
-    std::istringstream input3("  \t\n leading");
-    String y;
-    input3 >> y;
-    CHECK_CSTR(y, "leading");
-
-    // 长单词（超过初始容量，触发多次扩容）
-    const char* long_word =
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
-    std::istringstream input4(long_word);
-    String z;
-    input4 >> z;
-    CHECK(z.size() > 64u);
-    CHECK_CSTR(z, long_word);
-
-    // 空输入：读取失败，原值保持不变
-    std::istringstream empty("");
-    String keep("keep");
-    empty >> keep;
-    CHECK(empty.fail());
-    CHECK_CSTR(keep, "keep");
-}
-
 }  // namespace
 
 int main() {
@@ -720,8 +666,6 @@ int main() {
     run("capacity_growth_contract", test_capacity_growth_contract);
     run("empty_string_operations", test_empty_string_operations);
     run("deep_copy_independence_stress", test_deep_copy_independence_stress);
-    run("stream_output", test_stream_output);
-    run("stream_input", test_stream_input);
 
     std::cout << '\n' << "checks: " << g_checks << ", failures: " << g_failures << '\n';
     if (g_failures != 0) {

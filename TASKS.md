@@ -12,6 +12,9 @@
 - 除“被移动后”的对象外，所有对象始终保存以 `'\0'` 结尾的字符串，空串同样是有效状态；
 - 不使用 `std::string` 及任何 STL 容器代替自己实现的功能。
 
+选做（bonus）：第 6 节的流运算符 `<<` / `>>`。不实现不影响上述验收；
+实现了可以额外运行 bonus 测试（见 5、6 节）。
+
 仓库中 `include/my_string.h` 已给出必须实现的公开接口，`src/my_string.cpp` 是空的；
 你的工作就是补全私有数据成员并实现全部成员函数与运算符。
 
@@ -24,13 +27,14 @@ assignment2-string/
 ├── TASKS.md                    # 本文件：作业要求
 ├── docs/
 │   ├── build-and-test.md       # 构建、测试、ASan/UBSan 详解与 FAQ
-│   └── exceptions-and-moves.md # 先修知识：异常、异常安全、移动语义与 noexcept
+│   └── guide.md                # 教学指南：先修概念 + 实现骨架
 ├── include/
 │   └── my_string.h             # 公开接口（需要你补私有成员）
 ├── src/
 │   └── my_string.cpp           # 实现文件（留空，需要你填写）
 └── tests/
-    └── string_tests.cpp        # 随附自动测试（请勿修改）
+    ├── string_tests.cpp        # 基线自动测试（必做，请勿修改）
+    └── stream_tests.cpp        # 流操作 bonus 测试（选做，请勿修改）
 ```
 
 ## 3. 功能要求
@@ -51,7 +55,7 @@ String& operator=(String&& other) noexcept;   // 移动赋值
 - 移动构造与移动赋值必须为 `noexcept`，可以“窃取”资源，但被移动对象必须保持
   “有效但内容未指定”的状态（见 4.2）；
 - `noexcept` 是函数签名的一部分：声明里写了，`.cpp` 的定义里必须原样写，
-  否则编译报错（见 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)）；
+  否则编译报错（见 [`docs/guide.md`](docs/guide.md)）；
 - 复制赋值必须自赋值安全（`s = s` 不得释放自己的缓冲区）。
 
 ### 3.2 拼接与下标
@@ -91,7 +95,7 @@ try {
 
 `std::bad_alloc`（`new[]` 失败时自动抛出）不需要你写 `throw`，但实现要在这种
 失败下保持对象不变（见 4.1）。完整的异常、异常安全、移动语义与 `noexcept` 讲解见
-[`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
+[`docs/guide.md`](docs/guide.md)。
 
 ### 3.3 长度与容量
 
@@ -117,22 +121,18 @@ void push_back(char ch);                          // 末尾追加一个字符
 - `push_back`：容量不足时自动扩容，追加后仍以 `'\0'` 结尾；
 - 两个函数在内存分配失败时都必须保持原对象内容不变。
 
-### 3.5 类型转换与流操作
+### 3.5 类型转换
 
 ```cpp
 const char* c_str() const noexcept;           // 返回以 '\0' 结尾的内部缓冲区
 operator const char*() const noexcept;        // 隐式转换
-
-friend std::ostream& operator<<(std::ostream& os, const String& str);
-friend std::istream& operator>>(std::istream& is, String& str);
 ```
 
 - `c_str()` 返回的指针仅在对象未被修改、未被移动、未析构前有效；
   对任何对象（包括被移动过的）调用 `c_str()` 都必须返回一个有效的、以 `'\0'`
-  结尾的指针，不得返回 `nullptr` 或导致 UB；
-- `operator<<` 按 `size()` 写出内容（可含 `'\0'`，与 `std::string` 一致）；
-- `operator>>` 跳过前导空白、读到空白为止；未读到任何字符时置 `failbit`
-  且保持原值不变。
+  结尾的指针，不得返回 `nullptr` 或导致 UB。
+
+> 流运算符 `<<` / `>>` 是**选做内容**，已移到第 6 节。
 
 ### 3.6 交换
 
@@ -157,7 +157,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 | `push_back(ch)` | 末尾追加一个字符，自动扩容 |
 | `c_str()` / `operator const char*` | 转 C 字符串 |
 | `swap(other)` | 交换全部内容，自交换安全 |
-| `operator<<` / `operator>>` | 流输入输出 |
+| `operator<<` / `operator>>` | 流输入输出（**选做**，见第 6 节） |
 
 ## 4. 设计约束
 
@@ -169,7 +169,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
   一旦抛出异常（如 `std::bad_alloc`），原对象内容必须保持原样。
   这里的“强异常安全”指：操作要么成功，要么对象与操作前完全一样，不能出现
   “旧缓冲区已释放、新缓冲区又没分配成功”的悬空状态；实现口诀是
-  “先分配成功、再释放旧的”，详见 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
+  “先分配成功、再释放旧的”，详见 [`docs/guide.md`](docs/guide.md)。
 
 ### 4.2 被移动后的对象
 
@@ -179,7 +179,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 - 程序不得依赖其内容或 `size()` 的取值；
 - 再次对其实施移动等操作也不允许出现 UB 或双重释放；
 - 移动安全的具体做法（源对象置空、自移动特判等）见
-  [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
+  [`docs/guide.md`](docs/guide.md)。
 
 ### 4.3 自操作
 
@@ -200,7 +200,7 @@ void swap(String& other) noexcept;  // 交换两个对象的全部内容，自�
 
 ## 5. 测试与验收
 
-仓库已自带完整的自动测试（`tests/string_tests.cpp`，当前版本 412 项检查），
+仓库已自带自动测试（`tests/string_tests.cpp`，当前版本 **401 项检查**），
 它是你自测和验收的主要依据：
 
 ```bash
@@ -219,11 +219,43 @@ sanitizer 默认开启：配置阶段会探测编译器是否支持，支持才�
 不支持（或使用 MSVC）则直接报错，可用 `-DENABLE_SANITIZERS=OFF` 关闭
 （但关闭后不满足本作业的内存检查要求）。
 
+选做的流操作单独提供了一份测试（`tests/stream_tests.cpp`，11 项检查），
+需要用选项开启才会构建与运行（默认关闭，不影响上面的基线测试）：
+
+```bash
+cmake -S . -B build -DENABLE_BONUS_TESTS=ON
+cmake --build build -j
+ctest --test-dir build --output-on-failure   # 会同时运行基线与 bonus 测试
+```
+
 **不强制要求自行编写测试**，能通过随附测试、并理解其中的边界语义即可；
 非常鼓励你在完成前补充自己的边界用例（例如放到自己的临时文件中，不要修改
 `tests/string_tests.cpp`）。评分不会只看“测试是否变绿”，还会关注实现是否真正满足
 上述语义与内存安全要求，请勿针对测试输出硬编码。
 
 `docs/build-and-test.md` 中给出了更详细的构建说明、单测失败定位方法、
-sanitizer 报告解读与常见问题排查；异常、异常安全、移动语义与 `noexcept` 的
-先修知识见 [`docs/exceptions-and-moves.md`](docs/exceptions-and-moves.md)。
+sanitizer 报告解读与常见问题排查；异常、异常安全、移动语义、`noexcept`
+以及关键函数的实现骨架见 [`docs/guide.md`](docs/guide.md)。
+
+## 6. Bonus（选做）：流运算符 `<<` / `>>`
+
+本节是**选做内容**：不实现不影响第 1~5 节的验收；实现了可以额外运行
+`tests/stream_tests.cpp`（开启 `-DENABLE_BONUS_TESTS=ON`）进行验证。
+接口已在 `include/my_string.h` 中声明：
+
+```cpp
+friend std::ostream& operator<<(std::ostream& os, const String& str);
+friend std::istream& operator>>(std::istream& is, String& str);
+```
+
+要求：
+
+- `operator<<` 按 `size()` 写出内容（可含 `'\0'`，与 `std::string` 一致），
+  并返回 `os`；
+- `operator>>` 跳过前导空白，读到空白或流结束为止，并返回 `is`；
+- `operator>>` 未读到任何字符时置 `failbit`，且 `str` **保持原值不变**；
+- 推荐做法：先用 `std::istream::sentry`（或手动判断流状态）跳过空白，
+  再读到临时 `String`，成功后再提交给 `str`（这样读取失败时原值不被破坏）。
+
+实现思路与代码骨架见 [`docs/guide.md`](docs/guide.md) 的 Bonus 一节；
+测试命令见 5 节。
