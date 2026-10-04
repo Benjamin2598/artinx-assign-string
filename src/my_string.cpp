@@ -44,7 +44,7 @@ void raw_copy(char* dst, const char* src, std::size_t count) noexcept {
 }
 
 // 与 memmove 语义相同：允许 src、dst 指向同一缓冲区的重叠区间
-void raw_move(char* dst, const char* src, std::size_t count) noexcept {
+[[maybe_unused]] void raw_move(char* dst, const char* src, std::size_t count) noexcept {
     if (dst < src) {
         for (std::size_t i = 0; i < count; ++i) {
             dst[i] = src[i];
@@ -68,3 +68,96 @@ std::size_t growth_target(std::size_t current_capacity, std::size_t needed) noex
 }  // namespace
 
 // TODO: 在此实现 include/my_string.h 中声明的所有成员函数与运算符。
+String::String()
+    : data_(new char[kMinCapacity + 1]), size_(0), capacity_(kMinCapacity) {
+    data_[0] = '\0';
+}
+
+String::String(const char* str) : data_(nullptr), size_(0), capacity_(0) {
+    const char* source = str != nullptr ? str : "";
+    const std::size_t length = raw_length(source);
+    const std::size_t max_capacity = std::numeric_limits<std::size_t>::max() - 1;
+    if (length > max_capacity) {
+        throw std::length_error("String: requested size exceeds maximum capacity");
+    }
+
+    const std::size_t capacity = length > kMinCapacity ? length : kMinCapacity;
+    char* buffer = new char[capacity + 1];
+    raw_copy(buffer, source, length);
+    buffer[length] = '\0';
+
+    data_ = buffer;
+    size_ = length;
+    capacity_ = capacity;
+}
+
+String::~String() {
+    delete[] data_;
+}
+
+char& String::operator[](std::size_t index) noexcept {
+    return data_[index];
+}
+
+const char& String::operator[](std::size_t index) const noexcept {
+    return data_[index];
+}
+
+char& String::at(std::size_t index) {
+    if (index >= size_) {
+        throw std::out_of_range("String::at: index out of range");
+    }
+    return data_[index];
+}
+
+const char& String::at(std::size_t index) const {
+    if (index >= size_) {
+        throw std::out_of_range("String::at: index out of range");
+    }
+    return data_[index];
+}
+
+std::size_t String::size() const noexcept {
+    return size_;
+}
+
+std::size_t String::capacity() const noexcept {
+    return capacity_;
+}
+
+void String::push_back(char ch) {
+    const std::size_t max_capacity = std::numeric_limits<std::size_t>::max() - 1;
+    if (size_ >= max_capacity) {
+        throw std::length_error("String::push_back: maximum capacity exceeded");
+    }
+
+    const std::size_t needed = size_ + 1;
+    if (needed > capacity_) {
+        const std::size_t new_capacity = growth_target(capacity_, needed);
+        if (new_capacity > max_capacity) {
+            throw std::length_error("String::push_back: maximum capacity exceeded");
+        }
+
+        char* new_data = new char[new_capacity + 1];
+        raw_copy(new_data, data_, size_);
+        new_data[size_] = ch;
+        new_data[needed] = '\0';
+        delete[] data_;
+        data_ = new_data;
+        capacity_ = new_capacity;
+        size_ = needed;
+        return;
+    }
+
+    data_[size_] = ch;
+    size_ = needed;
+    data_[size_] = '\0';
+}
+
+const char* String::c_str() const noexcept {
+    return data_ != nullptr ? data_ : "";
+}
+
+String::operator const char*() const noexcept {
+    return c_str();
+}
