@@ -91,8 +91,47 @@ String::String(const char* str) : data_(nullptr), size_(0), capacity_(0) {
     capacity_ = capacity;
 }
 
+String::String(const String& other) : data_(nullptr), size_(0), capacity_(0) {
+    const std::size_t copied_size = other.data_ != nullptr ? other.size_ : 0;
+    const std::size_t capacity = copied_size > kMinCapacity ? copied_size : kMinCapacity;
+    char* buffer = new char[capacity + 1];
+    raw_copy(buffer, other.data_ != nullptr ? other.data_ : "", copied_size);
+    buffer[copied_size] = '\0';
+
+    data_ = buffer;
+    size_ = copied_size;
+    capacity_ = capacity;
+}
+
 String::~String() {
     delete[] data_;
+}
+
+String& String::operator=(const String& other) {
+    if (this == &other) {
+        return *this;
+    }
+    String copy(other);
+    swap(copy);
+    return *this;
+}
+
+String String::operator+(const String& other) const {
+    const std::size_t left_size = data_ != nullptr ? size_ : 0;
+    const std::size_t right_size = other.data_ != nullptr ? other.size_ : 0;
+    const std::size_t max_capacity = std::numeric_limits<std::size_t>::max() - 1;
+    if (left_size > max_capacity - right_size) {
+        throw std::length_error("String::operator+: maximum capacity exceeded");
+    }
+
+    const std::size_t combined_size = left_size + right_size;
+    String result;
+    result.ensure_capacity(combined_size);
+    raw_copy(result.data_, data_ != nullptr ? data_ : "", left_size);
+    raw_copy(result.data_ + left_size, other.data_ != nullptr ? other.data_ : "", right_size);
+    result.size_ = combined_size;
+    result.data_[combined_size] = '\0';
+    return result;
 }
 
 char& String::operator[](std::size_t index) noexcept {
@@ -125,6 +164,31 @@ std::size_t String::capacity() const noexcept {
     return capacity_;
 }
 
+void String::ensure_capacity(std::size_t needed) {
+    const std::size_t max_capacity = std::numeric_limits<std::size_t>::max() - 1;
+    if (needed > max_capacity) {
+        throw std::length_error("String: maximum capacity exceeded");
+    }
+    if (needed <= capacity_) {
+        return;
+    }
+
+    std::size_t target = growth_target(capacity_, needed);
+    if (target > max_capacity) {
+        target = max_capacity;
+    }
+    if (target < needed) {
+        throw std::length_error("String: maximum capacity exceeded");
+    }
+
+    char* fresh = new char[target + 1];
+    raw_copy(fresh, data_ != nullptr ? data_ : "", size_);
+    fresh[size_] = '\0';
+    delete[] data_;
+    data_ = fresh;
+    capacity_ = target;
+}
+
 void String::push_back(char ch) {
     const std::size_t max_capacity = std::numeric_limits<std::size_t>::max() - 1;
     if (size_ >= max_capacity) {
@@ -132,23 +196,7 @@ void String::push_back(char ch) {
     }
 
     const std::size_t needed = size_ + 1;
-    if (needed > capacity_) {
-        const std::size_t new_capacity = growth_target(capacity_, needed);
-        if (new_capacity > max_capacity) {
-            throw std::length_error("String::push_back: maximum capacity exceeded");
-        }
-
-        char* new_data = new char[new_capacity + 1];
-        raw_copy(new_data, data_, size_);
-        new_data[size_] = ch;
-        new_data[needed] = '\0';
-        delete[] data_;
-        data_ = new_data;
-        capacity_ = new_capacity;
-        size_ = needed;
-        return;
-    }
-
+    ensure_capacity(needed);
     data_[size_] = ch;
     size_ = needed;
     data_[size_] = '\0';
@@ -160,4 +208,18 @@ const char* String::c_str() const noexcept {
 
 String::operator const char*() const noexcept {
     return c_str();
+}
+
+void String::swap(String& other) noexcept {
+    char* data = data_;
+    data_ = other.data_;
+    other.data_ = data;
+
+    const std::size_t size = size_;
+    size_ = other.size_;
+    other.size_ = size;
+
+    const std::size_t capacity = capacity_;
+    capacity_ = other.capacity_;
+    other.capacity_ = capacity;
 }
