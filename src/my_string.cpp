@@ -28,7 +28,6 @@
 
 namespace {
 constexpr std::size_t kMinCapacity = 16;  // 容量契约：默认构造的空串容量 >= 16
-
 std::size_t raw_length(const char* s) noexcept {
     std::size_t length = 0;
     while (s[length] != '\0') {
@@ -36,13 +35,11 @@ std::size_t raw_length(const char* s) noexcept {
     }
     return length;
 }
-
 void raw_copy(char* dst, const char* src, std::size_t count) noexcept {
     for (std::size_t i = 0; i < count; ++i) {
         dst[i] = src[i];
     }
 }
-
 // 与 memmove 语义相同：允许 src、dst 指向同一缓冲区的重叠区间
 void raw_move(char* dst, const char* src, std::size_t count) noexcept {
     if (dst < src) {
@@ -55,7 +52,6 @@ void raw_move(char* dst, const char* src, std::size_t count) noexcept {
         }
     }
 }
-
 std::size_t growth_target(std::size_t current_capacity, std::size_t needed) noexcept {
     // 增长策略：max(所需长度, 当前容量 x 2, kMinCapacity)
     // 这样连续 push_back 的摊销复杂度是 O(1)
@@ -109,11 +105,9 @@ String::String(String&& other) noexcept
     other.size_ = 0;
     other.capacity_ = 0;
 }
-
 String::~String() {
     delete[] data_;
 }
-
 String& String::operator=(const String& other) {
     if (this == &other) {
         return *this;
@@ -122,7 +116,6 @@ String& String::operator=(const String& other) {
     swap(copy);
     return *this;
 }
-
 String& String::operator=(String&& other) noexcept {
     if (this == &other) {
         return *this;
@@ -131,12 +124,12 @@ String& String::operator=(String&& other) noexcept {
     data_ = other.data_;
     size_ = other.size_;
     capacity_ = other.capacity_;
+    
     other.data_ = nullptr;
     other.size_ = 0;
     other.capacity_ = 0;
     return *this;
 }
-
 String String::operator+(const String& other) const {
     const std::size_t left_size = data_ != nullptr ? size_ : 0;
     const std::size_t right_size = other.data_ != nullptr ? other.size_ : 0;

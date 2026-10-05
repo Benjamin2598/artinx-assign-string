@@ -1,6 +1,7 @@
 #ifndef ASSIGNMENT2_MY_STRING_H
 #define ASSIGNMENT2_MY_STRING_H
 
+
 // ============================================================================
 // 作业 2：自定义 String 类（基于 char 数组）
 //
@@ -64,7 +65,7 @@ public:
     operator const char*() const noexcept;        // 隐式转换
 
     // ---- 交换全部内容（自交换也必须安全）----
-    void swap(String& other) noexcept;
+    void swap(String& other) noexcept ;
 
     // ---- 流操作 ----
     friend std::ostream& operator<<(std::ostream& os, const String& str);
