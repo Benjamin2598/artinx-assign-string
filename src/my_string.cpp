@@ -44,7 +44,7 @@ void raw_copy(char* dst, const char* src, std::size_t count) noexcept {
 }
 
 // 与 memmove 语义相同：允许 src、dst 指向同一缓冲区的重叠区间
-[[maybe_unused]] void raw_move(char* dst, const char* src, std::size_t count) noexcept {
+void raw_move(char* dst, const char* src, std::size_t count) noexcept {
     if (dst < src) {
         for (std::size_t i = 0; i < count; ++i) {
             dst[i] = src[i];
@@ -208,6 +208,52 @@ const char* String::c_str() const noexcept {
 
 String::operator const char*() const noexcept {
     return c_str();
+}
+
+void String::insert(std::size_t pos, const String& str) {
+    const std::size_t current_size = data_ != nullptr ? size_ : 0;
+    if (pos > current_size) {
+        throw std::out_of_range("String::insert: pos out of range");
+    }
+
+    const std::size_t added = str.data_ != nullptr ? str.size_ : 0;
+    if (added == 0) {
+        return;
+    }
+
+    const std::size_t max_capacity = std::numeric_limits<std::size_t>::max() - 1;
+    if (current_size > max_capacity - added) {
+        throw std::length_error("String::insert: maximum capacity exceeded");
+    }
+    const std::size_t new_size = current_size + added;
+
+    if (new_size > capacity_) {
+        std::size_t new_capacity = growth_target(capacity_, new_size);
+        if (new_capacity > max_capacity) {
+            new_capacity = max_capacity;
+        }
+        if (new_capacity < new_size) {
+            throw std::length_error("String::insert: maximum capacity exceeded");
+        }
+
+        char* fresh = new char[new_capacity + 1];
+        raw_copy(fresh, data_ != nullptr ? data_ : "", pos);
+        raw_copy(fresh + pos, str.data_, added);
+        raw_copy(fresh + pos + added,
+                 data_ != nullptr ? data_ + pos : "",
+                 current_size - pos);
+        fresh[new_size] = '\0';
+
+        delete[] data_;
+        data_ = fresh;
+        size_ = new_size;
+        capacity_ = new_capacity;
+        return;
+    }
+
+    raw_move(data_ + pos + added, data_ + pos, current_size - pos + 1);
+    raw_copy(data_ + pos, str.data_, added);
+    size_ = new_size;
 }
 
 void String::swap(String& other) noexcept {
