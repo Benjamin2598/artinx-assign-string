@@ -123,6 +123,20 @@ String& String::operator=(const String& other) {
     return *this;
 }
 
+String& String::operator=(String&& other) noexcept {
+    if (this == &other) {
+        return *this;
+    }
+    delete[] data_;
+    data_ = other.data_;
+    size_ = other.size_;
+    capacity_ = other.capacity_;
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.capacity_ = 0;
+    return *this;
+}
+
 String String::operator+(const String& other) const {
     const std::size_t left_size = data_ != nullptr ? size_ : 0;
     const std::size_t right_size = other.data_ != nullptr ? other.size_ : 0;
@@ -258,8 +272,14 @@ void String::insert(std::size_t pos, const String& str) {
         return;
     }
 
-    raw_move(data_ + pos + added, data_ + pos, current_size - pos + 1);
-    raw_copy(data_ + pos, str.data_, added);
+    if (&str == this) {
+        raw_move(data_ + pos + added, data_ + pos, current_size - pos + 1);
+        raw_copy(data_ + pos, data_, pos);
+        raw_copy(data_ + 2 * pos, data_ + pos + added, current_size - pos);
+    } else {
+        raw_move(data_ + pos + added, data_ + pos, current_size - pos + 1);
+        raw_copy(data_ + pos, str.data_, added);
+    }
     size_ = new_size;
 }
 
