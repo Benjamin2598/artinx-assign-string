@@ -103,6 +103,13 @@ String::String(const String& other) : data_(nullptr), size_(0), capacity_(0) {
     capacity_ = capacity;
 }
 
+String::String(String&& other) noexcept
+    : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.capacity_ = 0;
+}
+
 String::~String() {
     delete[] data_;
 }
